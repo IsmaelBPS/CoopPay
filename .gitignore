@@ -1,0 +1,33 @@
+.ai
+
+# === Segredos e variáveis de ambiente ===
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+
+# === macOS ===
+.DS_Store
+.AppleDouble
+.LSOverride
+
+# === IDEs e Editores ===
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# === Logs e arquivos temporários ===
+*.log
+logs/
+tmp/
+temp/
+coverage/
+
+
+AGENTS.md
+GEMINI.md
+
+# === Maven ===
+target/
