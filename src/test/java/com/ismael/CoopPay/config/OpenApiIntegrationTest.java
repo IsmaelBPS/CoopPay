@@ -32,7 +32,10 @@ class OpenApiIntegrationTest {
                 .andExpect(jsonPath("$.info.title").value("CoopPay API"))
                 .andExpect(jsonPath("$.info.version").value("v1"))
                 .andExpect(jsonPath("$.paths['" + apiBase + "/associates']").exists())
-                .andExpect(jsonPath("$.paths['" + apiBase + "/associates/{id}']").exists());
+                .andExpect(jsonPath("$.paths['" + apiBase + "/associates/{id}']").exists())
+                .andExpect(jsonPath("$.paths['" + apiBase + "/ledger/{id}']").exists())
+                .andExpect(jsonPath("$.paths['" + apiBase + "/ledger/accounts/{accountId}']").exists())
+                .andExpect(jsonPath("$.paths['" + apiBase + "/ledger/transactions/{transactionId}']").exists());
     }
 
     @Test

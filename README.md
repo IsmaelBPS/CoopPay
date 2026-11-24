@@ -30,11 +30,11 @@ src/main/java/com/ismael/CoopPay/
 ### Em uso na aplicação
 - **Core & API:** Java 17, Maven (`mvnw`), Spring Boot 4.2.0, Spring Web MVC, Bean Validation, Springdoc OpenAPI (Swagger UI), Lombok, Spring Boot DevTools
 - **Persistência:** PostgreSQL 16 (`postgres:16-alpine`), Spring Data JPA / Hibernate, Flyway (`flyway-database-postgresql`)
+- **Observabilidade:** Spring Boot Actuator (`/actuator/health`, `/actuator/info`, `/actuator/metrics`), Micrometer Tracing + OpenTelemetry (`traceId`/`spanId` automáticos no MDC/logs)
 - **Infraestrutura & Testes:** Docker Compose, JUnit 5, Spring Boot Test, Testcontainers (PostgreSQL e Kafka), PITest (`pitest-maven`)
 
 ### Provisionadas para as próximas etapas
 - **Apache Kafka 3.9.0** (`apache/kafka` em modo KRaft) + **Spring for Apache Kafka** e **Kafka UI** — infraestrutura e `TestcontainersConfiguration` já configurados; producers/consumers ainda serão implementados nos fluxos de transação.
-- **Spring Boot Actuator** — dependência adicionada para health checks e métricas (endpoints padrão disponíveis em `/actuator`, sem configurações customizadas ainda).
 
 
 ### Frontend
@@ -120,4 +120,9 @@ Executar testes de mutação com PITest:
 - [ ] Controle de concorrência de saldo (locking otimista/pessimista) para evitar race conditions
 - [ ] Ledger imutável de movimentações para auditoria e rastreabilidade
 - [ ] Publicação e consumo de eventos financeiros no Apache Kafka
-- [ ] Configuração explícita de observabilidade e health checks via Spring Boot Actuator
+- [x] Configuração explícita de observabilidade básica e health checks via Spring Boot Actuator (`traceId`/`spanId` com OpenTelemetry e logs de negócio)
+- [ ] Métricas Prometheus (`/actuator/prometheus`) e métricas customizadas de negócio (operações, idempotência, saldo insuficiente e conflitos de concorrência)
+- [ ] Propagação de `traceId` entre producers e consumers no Apache Kafka
+- [ ] Stack local de observabilidade no Docker Compose (Prometheus, Grafana e Tempo/Loki ou `grafana/otel-lgtm`) com exportação OTLP
+- [ ] Endurecimento de observabilidade para produção (logs estruturados em JSON, restrição de `show-details` no Actuator e ajuste de `sampling.probability`)
+- [ ] Logs de negócio no módulo de contas (`AccountService`) e fluxos de concorrência/locking

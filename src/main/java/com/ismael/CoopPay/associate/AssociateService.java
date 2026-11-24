@@ -10,7 +10,9 @@ import com.ismael.CoopPay.associate.domain.AssociateRepository;
 import com.ismael.CoopPay.associate.domain.AssociateType;
 
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 
+@Slf4j
 @Service
 @RequiredArgsConstructor
 public class AssociateService {
@@ -23,7 +25,9 @@ public class AssociateService {
             throw new IllegalArgumentException("Email já cadastrado: " + email);
         }
         Associate associate = new Associate(null, name, email, password, type);
-        return associateRepository.save(associate);
+        Associate saved = associateRepository.save(associate);
+        log.info("Associado criado: associateId={}, type={}", saved.getId(), saved.getType());
+        return saved;
     }
 
     @Transactional(readOnly = true)
@@ -41,12 +45,15 @@ public class AssociateService {
         associate.setName(name);
         associate.setEmail(email);
         associate.setType(type);
-        return associateRepository.update(associate);
+        Associate updated = associateRepository.update(associate);
+        log.info("Associado atualizado: associateId={}, type={}", updated.getId(), updated.getType());
+        return updated;
     }
 
     @Transactional
     public void delete(UUID id) {
         Associate associate = findById(id);
         associateRepository.delete(associate);
+        log.info("Associado removido: associateId={}", id);
     }
 }
