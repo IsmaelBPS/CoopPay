@@ -1,0 +1,11 @@
+apiVersion: 1
+
+providers:
+  - name: CoopPay
+    orgId: 1
+    folder: CoopPay
+    type: file
+    disableDeletion: false
+    editable: true
+    options:
+      path: /etc/grafana/provisioning/dashboards

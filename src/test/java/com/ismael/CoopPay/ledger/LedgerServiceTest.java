@@ -19,6 +19,7 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
+import org.mockito.Spy;
 import org.mockito.junit.jupiter.MockitoExtension;
 
 import com.ismael.CoopPay.ledger.domain.LedgerEntry;
@@ -26,11 +27,17 @@ import com.ismael.CoopPay.ledger.domain.LedgerEntryType;
 import com.ismael.CoopPay.ledger.domain.LedgerOperationType;
 import com.ismael.CoopPay.ledger.domain.LedgerRepository;
 
+import io.micrometer.core.instrument.MeterRegistry;
+import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
+
 @ExtendWith(MockitoExtension.class)
 class LedgerServiceTest {
 
     @Mock
     private LedgerRepository ledgerRepository;
+
+    @Spy
+    private MeterRegistry meterRegistry = new SimpleMeterRegistry();
 
     @InjectMocks
     private LedgerService ledgerService;
@@ -90,6 +97,11 @@ class LedgerServiceTest {
         assertThat(captured.getIdempotencyKey()).isEqualTo(idempotencyKey);
         assertThat(captured.getDescription()).isEqualTo(description);
         assertThat(captured.getCreatedAt()).isNull();
+        assertThat(meterRegistry.counter(
+                "cooppay.ledger.entries.recorded",
+                "entry_type", "DEBIT",
+                "operation_type", "WITHDRAWAL"
+        ).count()).isEqualTo(1.0);
     }
 
     @Test
@@ -127,6 +139,11 @@ class LedgerServiceTest {
 
         assertThat(result).isSameAs(existing);
         verify(ledgerRepository, never()).save(any());
+        assertThat(meterRegistry.counter(
+                "cooppay.ledger.entries.idempotent_hits",
+                "entry_type", "CREDIT",
+                "operation_type", "DEPOSIT"
+        ).count()).isEqualTo(1.0);
     }
 
     @Test

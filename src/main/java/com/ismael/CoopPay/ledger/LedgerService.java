@@ -13,6 +13,7 @@ import com.ismael.CoopPay.ledger.domain.LedgerEntryType;
 import com.ismael.CoopPay.ledger.domain.LedgerOperationType;
 import com.ismael.CoopPay.ledger.domain.LedgerRepository;
 
+import io.micrometer.core.instrument.MeterRegistry;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 
@@ -22,6 +23,7 @@ import lombok.extern.slf4j.Slf4j;
 public class LedgerService {
 
     private final LedgerRepository ledgerRepository;
+    private final MeterRegistry meterRegistry;
 
     @Transactional
     public LedgerEntry recordEntry(
@@ -42,6 +44,11 @@ public class LedgerService {
                 entryType
         );
         if (existing.isPresent()) {
+            meterRegistry.counter(
+                    "cooppay.ledger.entries.idempotent_hits",
+                    "entry_type", entryType.name(),
+                    "operation_type", operationType.name()
+            ).increment();
             log.info("Lançamento idempotente reutilizado: entryId={}, transactionId={}, accountId={}, entryType={}",
                     existing.get().getId(), transactionId, accountId, entryType);
             return existing.get();
@@ -60,6 +67,11 @@ public class LedgerService {
                 null
         );
         LedgerEntry saved = ledgerRepository.save(entry);
+        meterRegistry.counter(
+                "cooppay.ledger.entries.recorded",
+                "entry_type", entryType.name(),
+                "operation_type", operationType.name()
+        ).increment();
         log.info("Lançamento registrado: entryId={}, transactionId={}, accountId={}, entryType={}, operationType={}, amount={}",
                 saved.getId(), transactionId, accountId, entryType, operationType, amount);
         return saved;

@@ -16,17 +16,24 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
+import org.mockito.Spy;
 import org.mockito.junit.jupiter.MockitoExtension;
 
 import com.ismael.CoopPay.associate.domain.Associate;
 import com.ismael.CoopPay.associate.domain.AssociateRepository;
 import com.ismael.CoopPay.associate.domain.AssociateType;
 
+import io.micrometer.core.instrument.MeterRegistry;
+import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
+
 @ExtendWith(MockitoExtension.class)
 class AssociateServiceTest {
 
     @Mock
     private AssociateRepository associateRepository;
+
+    @Spy
+    private MeterRegistry meterRegistry = new SimpleMeterRegistry();
 
     @InjectMocks
     private AssociateService associateService;
@@ -56,6 +63,7 @@ class AssociateServiceTest {
         assertThat(captured.getEmail()).isEqualTo("alice@coop.com");
         assertThat(captured.getPassword()).isEqualTo("secret123");
         assertThat(captured.getType()).isEqualTo(AssociateType.INDIVIDUAL);
+        assertThat(meterRegistry.counter("cooppay.associates.operations", "action", "created").count()).isEqualTo(1.0);
     }
 
     @Test
@@ -108,6 +116,7 @@ class AssociateServiceTest {
 
         verify(associateRepository, never()).existsByEmail(anyString());
         verify(associateRepository).update(existing);
+        assertThat(meterRegistry.counter("cooppay.associates.operations", "action", "updated").count()).isEqualTo(1.0);
     }
 
     @Test
@@ -162,6 +171,7 @@ class AssociateServiceTest {
         associateService.delete(id);
 
         verify(associateRepository).delete(existing);
+        assertThat(meterRegistry.counter("cooppay.associates.operations", "action", "deleted").count()).isEqualTo(1.0);
     }
 
     @Test

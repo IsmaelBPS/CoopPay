@@ -30,8 +30,8 @@ src/main/java/com/ismael/CoopPay/
 ### Em uso na aplicação
 - **Core & API:** Java 17, Maven (`mvnw`), Spring Boot 4.2.0, Spring Web MVC, Bean Validation, Springdoc OpenAPI (Swagger UI), Lombok, Spring Boot DevTools
 - **Persistência:** PostgreSQL 16 (`postgres:16-alpine`), Spring Data JPA / Hibernate, Flyway (`flyway-database-postgresql`)
-- **Observabilidade:** Spring Boot Actuator (`/actuator/health`, `/actuator/info`, `/actuator/metrics`), Micrometer Tracing + OpenTelemetry (`traceId`/`spanId` automáticos no MDC/logs)
-- **Infraestrutura & Testes:** Docker Compose, JUnit 5, Spring Boot Test, Testcontainers (PostgreSQL e Kafka), PITest (`pitest-maven`)
+- **Observabilidade:** Spring Boot Actuator (`/actuator/health`, `/actuator/info`, `/actuator/metrics`, `/actuator/prometheus`), Micrometer + Prometheus, Micrometer Tracing + OpenTelemetry (exportação OTLP para Grafana Tempo e `traceId`/`spanId` no MDC/logs), métricas customizadas de negócio, observabilidade Kafka habilitada e perfil `prod` com logs estruturados ECS (`application-prod.properties`)
+- **Infraestrutura & Testes:** Docker Compose (PostgreSQL, Kafka, Prometheus, Tempo, Grafana), JUnit 5, Spring Boot Test, Testcontainers (PostgreSQL e Kafka), PITest (`pitest-maven`)
 
 ### Provisionadas para as próximas etapas
 - **Apache Kafka 3.9.0** (`apache/kafka` em modo KRaft) + **Spring for Apache Kafka** e **Kafka UI** — infraestrutura e `TestcontainersConfiguration` já configurados; producers/consumers ainda serão implementados nos fluxos de transação.
@@ -58,7 +58,12 @@ cp .env.example .env
 docker compose up -d
 ```
 
-*(Opcional)* Para subir também o **Kafka UI** (porta `8080`):
+*(Opcional)* Para subir a stack de observabilidade (**Prometheus**, **Grafana Tempo** e **Grafana**):
+```bash
+docker compose --profile observability up -d
+```
+
+*(Opcional)* Para subir todas as ferramentas (**Kafka UI** na porta `8080` + observabilidade):
 ```bash
 docker compose --profile tools up -d
 ```
@@ -68,7 +73,18 @@ docker compose --profile tools up -d
 ./mvnw spring-boot:run
 ```
 
+*(Opcional)* Para rodar com o perfil de produção (logs JSON ECS, `sampling=0.1` e Actuator restrito):
+```bash
+./mvnw spring-boot:run -Dspring-boot.run.profiles=prod
+```
+
 A API sobe por padrão na porta **`3499`** com prefixo **`/api/v1`**.
+
+Portas da observabilidade local:
+- **Grafana:** `http://localhost:3000` (dashboard provisionado `CoopPay - Observability Overview`)
+- **Prometheus:** `http://localhost:9090`
+- **Tempo:** `http://localhost:3200` (OTLP HTTP `4318` / gRPC `4317`)
+- **Actuator Prometheus:** `http://localhost:3499/actuator/prometheus`
 
 ---
 
@@ -117,12 +133,17 @@ Executar testes de mutação com PITest:
 
 ## Roadmap
 - [ ] Módulo de contas (`account`): criação de conta, consulta de saldo, depósito, saque e transferência entre associados
-- [ ] Controle de concorrência de saldo (locking otimista/pessimista) para evitar race conditions
+- [ ] Controle de concorrência de saldo com lock na conta (`SELECT ... FOR UPDATE` / lock pessimista ou otimista com `@Version`) para evitar race conditions, duplicação de operações e débitos simultâneos/quase instantâneos sobre o mesmo saldo desatualizado
 - [ ] Ledger imutável de movimentações para auditoria e rastreabilidade
 - [ ] Publicação e consumo de eventos financeiros no Apache Kafka
 - [x] Configuração explícita de observabilidade básica e health checks via Spring Boot Actuator (`traceId`/`spanId` com OpenTelemetry e logs de negócio)
-- [ ] Métricas Prometheus (`/actuator/prometheus`) e métricas customizadas de negócio (operações, idempotência, saldo insuficiente e conflitos de concorrência)
-- [ ] Propagação de `traceId` entre producers e consumers no Apache Kafka
-- [ ] Stack local de observabilidade no Docker Compose (Prometheus, Grafana e Tempo/Loki ou `grafana/otel-lgtm`) com exportação OTLP
-- [ ] Endurecimento de observabilidade para produção (logs estruturados em JSON, restrição de `show-details` no Actuator e ajuste de `sampling.probability`)
-- [ ] Logs de negócio no módulo de contas (`AccountService`) e fluxos de concorrência/locking
+- [x] Métricas Prometheus (`/actuator/prometheus`) e métricas customizadas de negócio (`cooppay.ledger.entries.*`, `cooppay.associates.operations`)
+- [x] Propagação de `traceId` preparada no Apache Kafka (`spring.kafka.template.observation-enabled=true` e `spring.kafka.listener.observation-enabled=true`)
+- [x] Stack local de observabilidade no Docker Compose (Prometheus, Grafana Tempo e Grafana com datasources/dashboard provisionados) e exportação OTLP
+- [x] Perfil de produção (`application-prod.properties` com logs estruturados ECS, restrição de `show-details` no Actuator e `sampling.probability=0.1`)
+- [ ] Logs e métricas de negócio no módulo de contas (`AccountService`) e fluxos de concorrência/locking (saldo insuficiente e conflitos de concorrência)
+- [ ] Pipeline de CI no GitHub Actions (backend `./mvnw test` com Testcontainers, build do frontend e validação do `docker-compose.yml`)
+- [ ] Segurança de senha dos associados (hashing seguro com BCrypt/Argon2 antes de persistir)
+- [ ] Mitigação de race conditions na idempotência (tratamento de violação de chave única para requisições concorrentes com mesma `idempotencyKey`)
+- [ ] Tratamento global de erros na API REST (`@RestControllerAdvice` / `ProblemDetail` para padronizar respostas 4xx/5xx e mapear exceções de domínio e validação)
+- [ ] Integração com serviços AWS em ambiente local usando Floci no Docker Compose (ex.: S3 para comprovantes, SQS/SNS e SES)

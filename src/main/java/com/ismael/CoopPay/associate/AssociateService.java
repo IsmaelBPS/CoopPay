@@ -9,6 +9,7 @@ import com.ismael.CoopPay.associate.domain.Associate;
 import com.ismael.CoopPay.associate.domain.AssociateRepository;
 import com.ismael.CoopPay.associate.domain.AssociateType;
 
+import io.micrometer.core.instrument.MeterRegistry;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 
@@ -18,6 +19,7 @@ import lombok.extern.slf4j.Slf4j;
 public class AssociateService {
 
     private final AssociateRepository associateRepository;
+    private final MeterRegistry meterRegistry;
 
     @Transactional
     public Associate create(String name, String email, String password, AssociateType type) {
@@ -26,6 +28,7 @@ public class AssociateService {
         }
         Associate associate = new Associate(null, name, email, password, type);
         Associate saved = associateRepository.save(associate);
+        meterRegistry.counter("cooppay.associates.operations", "action", "created").increment();
         log.info("Associado criado: associateId={}, type={}", saved.getId(), saved.getType());
         return saved;
     }
@@ -46,6 +49,7 @@ public class AssociateService {
         associate.setEmail(email);
         associate.setType(type);
         Associate updated = associateRepository.update(associate);
+        meterRegistry.counter("cooppay.associates.operations", "action", "updated").increment();
         log.info("Associado atualizado: associateId={}, type={}", updated.getId(), updated.getType());
         return updated;
     }
@@ -54,6 +58,7 @@ public class AssociateService {
     public void delete(UUID id) {
         Associate associate = findById(id);
         associateRepository.delete(associate);
+        meterRegistry.counter("cooppay.associates.operations", "action", "deleted").increment();
         log.info("Associado removido: associateId={}", id);
     }
 }
