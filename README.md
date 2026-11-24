@@ -1,5 +1,7 @@
 # CoopPay
 
+[![CI](https://github.com/IsmaelBPS/CoopPay/actions/workflows/ci.yml/badge.svg)](https://github.com/IsmaelBPS/CoopPay/actions/workflows/ci.yml)
+
 Núcleo de movimentações financeiras entre associados de uma cooperativa de crédito, projetado com foco em **consistência de saldo sob concorrência**, **rastreabilidade** e **comunicação assíncrona** entre serviços.
 
 ---
@@ -129,6 +131,8 @@ Executar testes de mutação com PITest:
 ./mvnw test-compile org.pitest:pitest-maven:mutationCoverage
 ```
 
+A pipeline de CI (`.github/workflows/ci.yml`) roda a cada push na `main` e em pull requests: testes do backend com Testcontainers, build do frontend e validação do `docker-compose.yml`.
+
 ---
 
 ## Roadmap
@@ -142,7 +146,7 @@ Executar testes de mutação com PITest:
 - [x] Stack local de observabilidade no Docker Compose (Prometheus, Grafana Tempo e Grafana com datasources/dashboard provisionados) e exportação OTLP
 - [x] Perfil de produção (`application-prod.properties` com logs estruturados ECS, restrição de `show-details` no Actuator e `sampling.probability=0.1`)
 - [ ] Logs e métricas de negócio no módulo de contas (`AccountService`) e fluxos de concorrência/locking (saldo insuficiente e conflitos de concorrência)
-- [ ] Pipeline de CI no GitHub Actions (backend `./mvnw test` com Testcontainers, build do frontend e validação do `docker-compose.yml`)
+- [x] Pipeline de CI no GitHub Actions (backend `./mvnw test` com Testcontainers, build do frontend e validação do `docker-compose.yml`)
 - [ ] Segurança de senha dos associados (hashing seguro com BCrypt/Argon2 antes de persistir)
 - [ ] Mitigação de race conditions na idempotência (tratamento de violação de chave única para requisições concorrentes com mesma `idempotencyKey`)
 - [ ] Tratamento global de erros na API REST (`@RestControllerAdvice` / `ProblemDetail` para padronizar respostas 4xx/5xx e mapear exceções de domínio e validação)
