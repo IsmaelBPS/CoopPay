@@ -1,6 +1,8 @@
 package com.ismael.CoopPay.ledger;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.doAnswer;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.content;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
@@ -18,8 +20,10 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicInteger;
 
 import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.RepeatedTest;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
@@ -27,6 +31,7 @@ import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
 import org.springframework.context.annotation.Import;
 import org.springframework.http.MediaType;
+import org.springframework.test.context.bean.override.mockito.MockitoSpyBean;
 import org.springframework.test.web.servlet.MockMvc;
 
 import com.ismael.CoopPay.TestcontainersConfiguration;
@@ -47,7 +52,7 @@ class LedgerIntegrationTest {
     @Autowired
     private LedgerService ledgerService;
 
-    @Autowired
+    @MockitoSpyBean
     private LedgerRepository ledgerRepository;
 
     @Autowired
@@ -125,11 +130,19 @@ class LedgerIntegrationTest {
         assertThat(ledgerEntryJPARepository.count()).isEqualTo(1L);
     }
 
-    @Test
+    @RepeatedTest(20)
     void shouldCreateSingleEntryAndReturnSameId_whenSameIdempotencyKeyIsRecordedConcurrently() throws Exception {
         UUID accountId = UUID.randomUUID();
         String idempotencyKey = "idem-race-" + UUID.randomUUID();
-        int threads = 8;
+        int threads = 16;
+        AtomicInteger lostRace = new AtomicInteger();
+        doAnswer(inv -> {
+            boolean inserted = (boolean) inv.callRealMethod();
+            if (!inserted) {
+                lostRace.incrementAndGet();
+            }
+            return inserted;
+        }).when(ledgerRepository).insertIfAbsent(any());
         ExecutorService pool = Executors.newFixedThreadPool(threads);
         CountDownLatch start = new CountDownLatch(1);
 
@@ -154,6 +167,8 @@ class LedgerIntegrationTest {
 
         assertThat(ids).hasSize(1);
         assertThat(ledgerEntryJPARepository.count()).isEqualTo(1L);
+        // Prova que houve disputa real: todas menos uma perderam a corrida no ON CONFLICT.
+        assertThat(lostRace.get()).isEqualTo(threads - 1);
     }
 
     @Test
