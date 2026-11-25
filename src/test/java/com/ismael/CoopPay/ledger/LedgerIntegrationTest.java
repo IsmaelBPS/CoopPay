@@ -8,7 +8,16 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 
 import java.math.BigDecimal;
 import java.time.Instant;
+import java.util.ArrayList;
+import java.util.HashSet;
+import java.util.List;
+import java.util.Set;
 import java.util.UUID;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
+import java.util.concurrent.TimeUnit;
 
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -113,6 +122,37 @@ class LedgerIntegrationTest {
         );
 
         assertThat(second.getId()).isEqualTo(first.getId());
+        assertThat(ledgerEntryJPARepository.count()).isEqualTo(1L);
+    }
+
+    @Test
+    void shouldCreateSingleEntryAndReturnSameId_whenSameIdempotencyKeyIsRecordedConcurrently() throws Exception {
+        UUID accountId = UUID.randomUUID();
+        String idempotencyKey = "idem-race-" + UUID.randomUUID();
+        int threads = 8;
+        ExecutorService pool = Executors.newFixedThreadPool(threads);
+        CountDownLatch start = new CountDownLatch(1);
+
+        List<Future<LedgerEntry>> futures = new ArrayList<>();
+        for (int i = 0; i < threads; i++) {
+            futures.add(pool.submit(() -> {
+                start.await();
+                return ledgerService.recordEntry(
+                        UUID.randomUUID(), accountId,
+                        LedgerEntryType.CREDIT, LedgerOperationType.DEPOSIT,
+                        new BigDecimal("100.00"), new BigDecimal("100.00"),
+                        idempotencyKey, "Corrida");
+            }));
+        }
+        start.countDown();
+
+        Set<UUID> ids = new HashSet<>();
+        for (Future<LedgerEntry> f : futures) {
+            ids.add(f.get(10, TimeUnit.SECONDS).getId());
+        }
+        pool.shutdown();
+
+        assertThat(ids).hasSize(1);
         assertThat(ledgerEntryJPARepository.count()).isEqualTo(1L);
     }
 

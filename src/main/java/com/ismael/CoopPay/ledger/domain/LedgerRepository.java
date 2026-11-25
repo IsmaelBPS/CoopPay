@@ -8,6 +8,9 @@ public interface LedgerRepository {
 
     LedgerEntry save(LedgerEntry entry);
 
+    /** Insere de forma atômica; false se a chave de idempotência já existia (inclusive em race). */
+    boolean insertIfAbsent(LedgerEntry entry);
+
     Optional<LedgerEntry> findById(UUID id);
 
     List<LedgerEntry> findByAccountId(UUID accountId);

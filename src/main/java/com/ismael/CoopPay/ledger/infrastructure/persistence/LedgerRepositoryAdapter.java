@@ -1,5 +1,6 @@
 package com.ismael.CoopPay.ledger.infrastructure.persistence;
 
+import java.time.Instant;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
@@ -22,6 +23,22 @@ public class LedgerRepositoryAdapter implements LedgerRepository {
     public LedgerEntry save(LedgerEntry entry) {
         LedgerEntryEntity saved = jpaRepository.save(LedgerEntryEntity.fromDomain(entry));
         return saved.toDomain();
+    }
+
+    @Override
+    public boolean insertIfAbsent(LedgerEntry e) {
+        return jpaRepository.insertIfAbsent(
+                UUID.randomUUID(),
+                e.getTransactionId(),
+                e.getAccountId(),
+                e.getEntryType().name(),
+                e.getOperationType().name(),
+                e.getAmount(),
+                e.getBalanceAfter(),
+                e.getIdempotencyKey(),
+                e.getDescription(),
+                e.getCreatedAt() != null ? e.getCreatedAt() : Instant.now()
+        ) == 1;
     }
 
     @Override

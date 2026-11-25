@@ -3,7 +3,6 @@ package com.ismael.CoopPay.ledger;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
@@ -26,6 +25,7 @@ import com.ismael.CoopPay.ledger.domain.LedgerEntry;
 import com.ismael.CoopPay.ledger.domain.LedgerEntryType;
 import com.ismael.CoopPay.ledger.domain.LedgerOperationType;
 import com.ismael.CoopPay.ledger.domain.LedgerRepository;
+import com.ismael.CoopPay.shared.exception.ResourceConflictException;
 import com.ismael.CoopPay.shared.exception.ResourceNotFoundException;
 
 import io.micrometer.core.instrument.MeterRegistry;
@@ -67,10 +67,10 @@ class LedgerServiceTest {
                 createdAt
         );
 
+        when(ledgerRepository.insertIfAbsent(any(LedgerEntry.class))).thenReturn(true);
         when(ledgerRepository.findByIdempotencyKeyAndAccountIdAndEntryType(
                 idempotencyKey, accountId, LedgerEntryType.DEBIT
-        )).thenReturn(Optional.empty());
-        when(ledgerRepository.save(any(LedgerEntry.class))).thenReturn(savedEntry);
+        )).thenReturn(Optional.of(savedEntry));
 
         LedgerEntry result = ledgerService.recordEntry(
                 transactionId,
@@ -86,7 +86,7 @@ class LedgerServiceTest {
         assertThat(result).isSameAs(savedEntry);
 
         ArgumentCaptor<LedgerEntry> captor = ArgumentCaptor.forClass(LedgerEntry.class);
-        verify(ledgerRepository).save(captor.capture());
+        verify(ledgerRepository).insertIfAbsent(captor.capture());
         LedgerEntry captured = captor.getValue();
         assertThat(captured.getId()).isNull();
         assertThat(captured.getTransactionId()).isEqualTo(transactionId);
@@ -123,6 +123,7 @@ class LedgerServiceTest {
                 Instant.now()
         );
 
+        when(ledgerRepository.insertIfAbsent(any(LedgerEntry.class))).thenReturn(false);
         when(ledgerRepository.findByIdempotencyKeyAndAccountIdAndEntryType(
                 idempotencyKey, accountId, LedgerEntryType.CREDIT
         )).thenReturn(Optional.of(existing));
@@ -139,12 +140,33 @@ class LedgerServiceTest {
         );
 
         assertThat(result).isSameAs(existing);
-        verify(ledgerRepository, never()).save(any());
         assertThat(meterRegistry.counter(
                 "cooppay.ledger.entries.idempotent_hits",
                 "entry_type", "CREDIT",
                 "operation_type", "DEPOSIT"
         ).count()).isEqualTo(1.0);
+    }
+
+    @Test
+    void recordEntry_shouldThrowConflict_whenIdempotencyKeyReusedWithDifferentAmount() {
+        UUID accountId = UUID.randomUUID();
+        LedgerEntry existing = new LedgerEntry(
+                UUID.randomUUID(), UUID.randomUUID(), accountId,
+                LedgerEntryType.CREDIT, LedgerOperationType.DEPOSIT,
+                new BigDecimal("150.00"), new BigDecimal("150.00"),
+                "idem-diff", "Depósito", Instant.now()
+        );
+        when(ledgerRepository.insertIfAbsent(any(LedgerEntry.class))).thenReturn(false);
+        when(ledgerRepository.findByIdempotencyKeyAndAccountIdAndEntryType(
+                "idem-diff", accountId, LedgerEntryType.CREDIT
+        )).thenReturn(Optional.of(existing));
+
+        assertThatThrownBy(() -> ledgerService.recordEntry(
+                UUID.randomUUID(), accountId,
+                LedgerEntryType.CREDIT, LedgerOperationType.DEPOSIT,
+                new BigDecimal("999.00"), new BigDecimal("999.00"),
+                "idem-diff", "Depósito"
+        )).isInstanceOf(ResourceConflictException.class);
     }
 
     @Test

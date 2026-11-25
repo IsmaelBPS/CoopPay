@@ -2,7 +2,6 @@ package com.ismael.CoopPay.ledger;
 
 import java.math.BigDecimal;
 import java.util.List;
-import java.util.Optional;
 import java.util.UUID;
 
 import org.springframework.stereotype.Service;
@@ -12,6 +11,7 @@ import com.ismael.CoopPay.ledger.domain.LedgerEntry;
 import com.ismael.CoopPay.ledger.domain.LedgerEntryType;
 import com.ismael.CoopPay.ledger.domain.LedgerOperationType;
 import com.ismael.CoopPay.ledger.domain.LedgerRepository;
+import com.ismael.CoopPay.shared.exception.ResourceConflictException;
 import com.ismael.CoopPay.shared.exception.ResourceNotFoundException;
 
 import io.micrometer.core.instrument.MeterRegistry;
@@ -39,23 +39,7 @@ public class LedgerService {
     ) {
         validateEntryInput(transactionId, accountId, entryType, operationType, amount, balanceAfter, idempotencyKey);
 
-        Optional<LedgerEntry> existing = ledgerRepository.findByIdempotencyKeyAndAccountIdAndEntryType(
-                idempotencyKey,
-                accountId,
-                entryType
-        );
-        if (existing.isPresent()) {
-            meterRegistry.counter(
-                    "cooppay.ledger.entries.idempotent_hits",
-                    "entry_type", entryType.name(),
-                    "operation_type", operationType.name()
-            ).increment();
-            log.info("Lançamento idempotente reutilizado: entryId={}, transactionId={}, accountId={}, entryType={}",
-                    existing.get().getId(), transactionId, accountId, entryType);
-            return existing.get();
-        }
-
-        LedgerEntry entry = new LedgerEntry(
+        LedgerEntry candidate = new LedgerEntry(
                 null,
                 transactionId,
                 accountId,
@@ -67,7 +51,26 @@ public class LedgerService {
                 description,
                 null
         );
-        LedgerEntry saved = ledgerRepository.save(entry);
+        // Insert atômico: quem perde a corrida cai no ramo idempotente em vez de estourar unique violation.
+        boolean inserted = ledgerRepository.insertIfAbsent(candidate);
+        LedgerEntry saved = ledgerRepository.findByIdempotencyKeyAndAccountIdAndEntryType(
+                idempotencyKey, accountId, entryType).orElseThrow();
+
+        if (!inserted) {
+            if (saved.getAmount().compareTo(amount) != 0 || saved.getOperationType() != operationType) {
+                throw new ResourceConflictException(
+                        "Chave de idempotência já utilizada com dados diferentes: " + idempotencyKey);
+            }
+            meterRegistry.counter(
+                    "cooppay.ledger.entries.idempotent_hits",
+                    "entry_type", entryType.name(),
+                    "operation_type", operationType.name()
+            ).increment();
+            log.info("Lançamento idempotente reutilizado: entryId={}, transactionId={}, accountId={}, entryType={}",
+                    saved.getId(), transactionId, accountId, entryType);
+            return saved;
+        }
+
         meterRegistry.counter(
                 "cooppay.ledger.entries.recorded",
                 "entry_type", entryType.name(),
