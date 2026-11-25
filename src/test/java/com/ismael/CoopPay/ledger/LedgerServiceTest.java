@@ -26,6 +26,7 @@ import com.ismael.CoopPay.ledger.domain.LedgerEntry;
 import com.ismael.CoopPay.ledger.domain.LedgerEntryType;
 import com.ismael.CoopPay.ledger.domain.LedgerOperationType;
 import com.ismael.CoopPay.ledger.domain.LedgerRepository;
+import com.ismael.CoopPay.shared.exception.ResourceNotFoundException;
 
 import io.micrometer.core.instrument.MeterRegistry;
 import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
@@ -354,7 +355,7 @@ class LedgerServiceTest {
         when(ledgerRepository.findById(id)).thenReturn(Optional.empty());
 
         assertThatThrownBy(() -> ledgerService.findById(id))
-                .isInstanceOf(IllegalArgumentException.class)
+                .isInstanceOf(ResourceNotFoundException.class)
                 .hasMessage("Lançamento não encontrado: " + id);
     }
 

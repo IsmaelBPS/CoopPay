@@ -35,7 +35,8 @@ public class AssociateController {
     @Operation(summary = "Busca associado por ID")
     @ApiResponses({
         @ApiResponse(responseCode = "200", description = "Associado encontrado"),
-        @ApiResponse(responseCode = "400", description = "UUID inválido")
+        @ApiResponse(responseCode = "400", description = "UUID inválido"),
+        @ApiResponse(responseCode = "404", description = "Associado não encontrado")
     })
     @GetMapping("/{id}")
     public AssociateResponse getAssociate(@PathVariable UUID id) {
@@ -45,7 +46,8 @@ public class AssociateController {
     @Operation(summary = "Cadastra um associado")
     @ApiResponses({
         @ApiResponse(responseCode = "201", description = "Associado cadastrado"),
-        @ApiResponse(responseCode = "400", description = "Dados de entrada inválidos")
+        @ApiResponse(responseCode = "400", description = "Dados de entrada inválidos"),
+        @ApiResponse(responseCode = "409", description = "E-mail já cadastrado")
     })
     @PostMapping
     public ResponseEntity<AssociateResponse> create(@Valid @RequestBody CreateAssociateRequest body) {
@@ -56,7 +58,9 @@ public class AssociateController {
     @Operation(summary = "Atualiza um associado")
     @ApiResponses({
         @ApiResponse(responseCode = "200", description = "Associado atualizado"),
-        @ApiResponse(responseCode = "400", description = "Dados de entrada ou UUID inválidos")
+        @ApiResponse(responseCode = "400", description = "Dados de entrada ou UUID inválidos"),
+        @ApiResponse(responseCode = "404", description = "Associado não encontrado"),
+        @ApiResponse(responseCode = "409", description = "E-mail já cadastrado")
     })
     @PutMapping("/{id}")
     public AssociateResponse update(@PathVariable UUID id, @Valid @RequestBody UpdateAssociateRequest body) {
@@ -67,7 +71,8 @@ public class AssociateController {
     @Operation(summary = "Remove um associado")
     @ApiResponses({
         @ApiResponse(responseCode = "204", description = "Associado removido"),
-        @ApiResponse(responseCode = "400", description = "UUID inválido")
+        @ApiResponse(responseCode = "400", description = "UUID inválido"),
+        @ApiResponse(responseCode = "404", description = "Associado não encontrado")
     })
     @DeleteMapping("/{id}")
     @ResponseStatus(HttpStatus.NO_CONTENT)

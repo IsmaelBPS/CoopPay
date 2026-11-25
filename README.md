@@ -17,6 +17,9 @@ src/main/java/com/ismael/CoopPay/
 │   ├── domain/                     # Entidades de domínio e portas (AssociateRepository)
 │   ├── infrastructure/persistence/ # Entidade JPA e adaptador de repositório
 │   └── AssociateService.java       # Regras de negócio de associados
+├── shared/
+│   ├── api/                        # Tratamento global de erros (GlobalExceptionHandler / ProblemDetail)
+│   └── exception/                  # Exceções de domínio reutilizáveis
 └── account/                        # Módulo de contas e movimentações (em evolução)
 ```
 
@@ -149,5 +152,5 @@ A pipeline de CI (`.github/workflows/ci.yml`) roda a cada push na `main` e em pu
 - [x] Pipeline de CI no GitHub Actions (backend `./mvnw test` com Testcontainers, build do frontend e validação do `docker-compose.yml`)
 - [ ] Segurança de senha dos associados (hashing seguro com BCrypt/Argon2 antes de persistir)
 - [ ] Mitigação de race conditions na idempotência (tratamento de violação de chave única para requisições concorrentes com mesma `idempotencyKey`)
-- [ ] Tratamento global de erros na API REST (`@RestControllerAdvice` / `ProblemDetail` para padronizar respostas 4xx/5xx e mapear exceções de domínio e validação)
+- [x] Tratamento global de erros na API REST (`@RestControllerAdvice` / `ProblemDetail` para padronizar respostas 4xx/5xx e mapear exceções de domínio e validação)
 - [ ] Integração com serviços AWS em ambiente local usando Floci no Docker Compose (ex.: S3 para comprovantes, SQS/SNS e SES)

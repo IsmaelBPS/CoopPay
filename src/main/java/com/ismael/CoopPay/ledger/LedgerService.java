@@ -12,6 +12,7 @@ import com.ismael.CoopPay.ledger.domain.LedgerEntry;
 import com.ismael.CoopPay.ledger.domain.LedgerEntryType;
 import com.ismael.CoopPay.ledger.domain.LedgerOperationType;
 import com.ismael.CoopPay.ledger.domain.LedgerRepository;
+import com.ismael.CoopPay.shared.exception.ResourceNotFoundException;
 
 import io.micrometer.core.instrument.MeterRegistry;
 import lombok.RequiredArgsConstructor;
@@ -80,7 +81,7 @@ public class LedgerService {
     @Transactional(readOnly = true)
     public LedgerEntry findById(UUID id) {
         return ledgerRepository.findById(id)
-                .orElseThrow(() -> new IllegalArgumentException("Lançamento não encontrado: " + id));
+                .orElseThrow(() -> new ResourceNotFoundException("Lançamento não encontrado: " + id));
     }
 
     @Transactional(readOnly = true)

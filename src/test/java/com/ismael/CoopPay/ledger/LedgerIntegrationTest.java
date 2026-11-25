@@ -1,8 +1,8 @@
 package com.ismael.CoopPay.ledger;
 
 import static org.assertj.core.api.Assertions.assertThat;
-import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.content;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
@@ -17,6 +17,7 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
 import org.springframework.context.annotation.Import;
+import org.springframework.http.MediaType;
 import org.springframework.test.web.servlet.MockMvc;
 
 import com.ismael.CoopPay.TestcontainersConfiguration;
@@ -25,8 +26,6 @@ import com.ismael.CoopPay.ledger.domain.LedgerEntryType;
 import com.ismael.CoopPay.ledger.domain.LedgerOperationType;
 import com.ismael.CoopPay.ledger.domain.LedgerRepository;
 import com.ismael.CoopPay.ledger.infrastructure.persistence.LedgerEntryJPARepository;
-
-import jakarta.servlet.ServletException;
 
 @SpringBootTest
 @AutoConfigureMockMvc
@@ -229,13 +228,17 @@ class LedgerIntegrationTest {
     }
 
     @Test
-    void shouldFailWhenFindingNonExistentLedgerEntry() {
+    void shouldReturn404ProblemDetailWhenFindingNonExistentLedgerEntry() throws Exception {
         UUID randomId = UUID.randomUUID();
+        String path = apiBase + "/ledger/" + randomId;
 
-        assertThatThrownBy(() -> mockMvc.perform(get(apiBase + "/ledger/{id}", randomId)))
-                .isInstanceOf(ServletException.class)
-                .rootCause()
-                .isInstanceOf(IllegalArgumentException.class)
-                .hasMessageContaining("Lançamento não encontrado");
+        mockMvc.perform(get(path))
+                .andExpect(status().isNotFound())
+                .andExpect(content().contentTypeCompatibleWith(MediaType.APPLICATION_PROBLEM_JSON))
+                .andExpect(jsonPath("$.status").value(404))
+                .andExpect(jsonPath("$.title").value("Recurso não encontrado"))
+                .andExpect(jsonPath("$.detail").value("Lançamento não encontrado: " + randomId))
+                .andExpect(jsonPath("$.instance").value(path))
+                .andExpect(jsonPath("$.timestamp").isNotEmpty());
     }
 }

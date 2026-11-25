@@ -27,7 +27,8 @@ public class LedgerController {
     @Operation(summary = "Busca lançamento por ID")
     @ApiResponses({
         @ApiResponse(responseCode = "200", description = "Lançamento encontrado"),
-        @ApiResponse(responseCode = "400", description = "UUID inválido")
+        @ApiResponse(responseCode = "400", description = "UUID inválido"),
+        @ApiResponse(responseCode = "404", description = "Lançamento não encontrado")
     })
     @GetMapping("/{id}")
     public LedgerEntryResponse getById(@PathVariable UUID id) {

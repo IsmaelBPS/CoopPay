@@ -17,11 +17,14 @@ import org.mockito.ArgumentCaptor;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.Spy;
+import org.springframework.security.crypto.password.PasswordEncoder;
 import org.mockito.junit.jupiter.MockitoExtension;
 
 import com.ismael.CoopPay.associate.domain.Associate;
 import com.ismael.CoopPay.associate.domain.AssociateRepository;
 import com.ismael.CoopPay.associate.domain.AssociateType;
+import com.ismael.CoopPay.shared.exception.ResourceConflictException;
+import com.ismael.CoopPay.shared.exception.ResourceNotFoundException;
 
 import io.micrometer.core.instrument.MeterRegistry;
 import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
@@ -35,6 +38,9 @@ class AssociateServiceTest {
     @Spy
     private MeterRegistry meterRegistry = new SimpleMeterRegistry();
 
+    @Mock
+    private PasswordEncoder passwordEncoder;
+
     @InjectMocks
     private AssociateService associateService;
 
@@ -42,6 +48,7 @@ class AssociateServiceTest {
     void create_shouldSaveAndReturnAssociate_whenEmailDoesNotExist() {
         UUID generatedId = UUID.randomUUID();
         when(associateRepository.existsByEmail("alice@coop.com")).thenReturn(false);
+        when(passwordEncoder.encode("secret123")).thenReturn("hashed");
         when(associateRepository.save(any(Associate.class))).thenAnswer(inv -> {
             Associate arg = inv.getArgument(0);
             return new Associate(generatedId, arg.getName(), arg.getEmail(), arg.getPassword(), arg.getType());
@@ -52,7 +59,7 @@ class AssociateServiceTest {
         assertThat(result.getId()).isEqualTo(generatedId);
         assertThat(result.getName()).isEqualTo("Alice");
         assertThat(result.getEmail()).isEqualTo("alice@coop.com");
-        assertThat(result.getPassword()).isEqualTo("secret123");
+        assertThat(result.getPassword()).isEqualTo("hashed");
         assertThat(result.getType()).isEqualTo(AssociateType.INDIVIDUAL);
 
         ArgumentCaptor<Associate> captor = ArgumentCaptor.forClass(Associate.class);
@@ -61,7 +68,7 @@ class AssociateServiceTest {
         assertThat(captured.getId()).isNull();
         assertThat(captured.getName()).isEqualTo("Alice");
         assertThat(captured.getEmail()).isEqualTo("alice@coop.com");
-        assertThat(captured.getPassword()).isEqualTo("secret123");
+        assertThat(captured.getPassword()).isEqualTo("hashed");
         assertThat(captured.getType()).isEqualTo(AssociateType.INDIVIDUAL);
         assertThat(meterRegistry.counter("cooppay.associates.operations", "action", "created").count()).isEqualTo(1.0);
     }
@@ -72,7 +79,7 @@ class AssociateServiceTest {
         when(associateRepository.existsByEmail(email)).thenReturn(true);
 
         assertThatThrownBy(() -> associateService.create("Alice", email, "secret123", AssociateType.INDIVIDUAL))
-                .isInstanceOf(IllegalArgumentException.class)
+                .isInstanceOf(ResourceConflictException.class)
                 .hasMessageContaining("Email já cadastrado: " + email);
 
         verify(associateRepository, never()).save(any());
@@ -95,7 +102,7 @@ class AssociateServiceTest {
         when(associateRepository.findById(id)).thenReturn(Optional.empty());
 
         assertThatThrownBy(() -> associateService.findById(id))
-                .isInstanceOf(IllegalArgumentException.class)
+                .isInstanceOf(ResourceNotFoundException.class)
                 .hasMessageContaining("Associado não encontrado: " + id);
     }
 
@@ -142,7 +149,7 @@ class AssociateServiceTest {
         when(associateRepository.findById(id)).thenReturn(Optional.empty());
 
         assertThatThrownBy(() -> associateService.update(id, "Alice", "alice@coop.com", AssociateType.INDIVIDUAL))
-                .isInstanceOf(IllegalArgumentException.class)
+                .isInstanceOf(ResourceNotFoundException.class)
                 .hasMessageContaining("Associado não encontrado");
 
         verify(associateRepository, never()).update(any());
@@ -156,7 +163,7 @@ class AssociateServiceTest {
         when(associateRepository.existsByEmail("taken@coop.com")).thenReturn(true);
 
         assertThatThrownBy(() -> associateService.update(id, "Alice", "taken@coop.com", AssociateType.INDIVIDUAL))
-                .isInstanceOf(IllegalArgumentException.class)
+                .isInstanceOf(ResourceConflictException.class)
                 .hasMessageContaining("Email já cadastrado");
 
         verify(associateRepository, never()).update(any());
@@ -180,7 +187,7 @@ class AssociateServiceTest {
         when(associateRepository.findById(id)).thenReturn(Optional.empty());
 
         assertThatThrownBy(() -> associateService.delete(id))
-                .isInstanceOf(IllegalArgumentException.class)
+                .isInstanceOf(ResourceNotFoundException.class)
                 .hasMessageContaining("Associado não encontrado");
 
         verify(associateRepository, never()).delete(any());

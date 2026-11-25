@@ -2,12 +2,15 @@ package com.ismael.CoopPay.associate;
 
 import java.util.UUID;
 
+import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import com.ismael.CoopPay.associate.domain.Associate;
 import com.ismael.CoopPay.associate.domain.AssociateRepository;
 import com.ismael.CoopPay.associate.domain.AssociateType;
+import com.ismael.CoopPay.shared.exception.ResourceConflictException;
+import com.ismael.CoopPay.shared.exception.ResourceNotFoundException;
 
 import io.micrometer.core.instrument.MeterRegistry;
 import lombok.RequiredArgsConstructor;
@@ -20,13 +23,14 @@ public class AssociateService {
 
     private final AssociateRepository associateRepository;
     private final MeterRegistry meterRegistry;
+    private final PasswordEncoder passwordEncoder;
 
     @Transactional
     public Associate create(String name, String email, String password, AssociateType type) {
         if (associateRepository.existsByEmail(email)) {
-            throw new IllegalArgumentException("Email já cadastrado: " + email);
+            throw new ResourceConflictException("Email já cadastrado: " + email);
         }
-        Associate associate = new Associate(null, name, email, password, type);
+        Associate associate = new Associate(null, name, email, passwordEncoder.encode(password), type);
         Associate saved = associateRepository.save(associate);
         meterRegistry.counter("cooppay.associates.operations", "action", "created").increment();
         log.info("Associado criado: associateId={}, type={}", saved.getId(), saved.getType());
@@ -36,14 +40,14 @@ public class AssociateService {
     @Transactional(readOnly = true)
     public Associate findById(UUID id) {
         return associateRepository.findById(id)
-                .orElseThrow(() -> new IllegalArgumentException("Associado não encontrado: " + id));
+                .orElseThrow(() -> new ResourceNotFoundException("Associado não encontrado: " + id));
     }
 
     @Transactional
     public Associate update(UUID id, String name, String email, AssociateType type) {
         Associate associate = findById(id);
         if (!associate.getEmail().equals(email) && associateRepository.existsByEmail(email)) {
-            throw new IllegalArgumentException("Email já cadastrado: " + email);
+            throw new ResourceConflictException("Email já cadastrado: " + email);
         }
         associate.setName(name);
         associate.setEmail(email);

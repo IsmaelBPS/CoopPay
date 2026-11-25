@@ -1,11 +1,11 @@
 package com.ismael.CoopPay.associate;
 
 import static org.assertj.core.api.Assertions.assertThat;
-import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.content;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
@@ -19,6 +19,7 @@ import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
 import org.springframework.context.annotation.Import;
 import org.springframework.http.MediaType;
+import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.MvcResult;
 
@@ -30,13 +31,15 @@ import com.ismael.CoopPay.associate.domain.AssociateType;
 import com.ismael.CoopPay.associate.infrastructure.persistence.AssociateEntity;
 import com.ismael.CoopPay.associate.infrastructure.persistence.AssociateJPARepository;
 
-import jakarta.servlet.ServletException;
 import tools.jackson.databind.ObjectMapper;
 
 @SpringBootTest
 @AutoConfigureMockMvc
 @Import(TestcontainersConfiguration.class)
 class AssociateIntegrationTest {
+
+    @Autowired
+    private PasswordEncoder passwordEncoder;
 
     @Autowired
     private MockMvc mockMvc;
@@ -77,7 +80,8 @@ class AssociateIntegrationTest {
         AssociateEntity persisted = associateJPARepository.findById(created.id()).orElseThrow();
         assertThat(persisted.getName()).isEqualTo("Alice");
         assertThat(persisted.getEmail()).isEqualTo("alice@coop.com");
-        assertThat(persisted.getPassword()).isEqualTo("secret123");
+        assertThat(persisted.getPassword()).startsWith("$argon2id$").isNotEqualTo("secret123");
+        assertThat(passwordEncoder.matches("secret123", persisted.getPassword())).isTrue();
         assertThat(persisted.getType()).isEqualTo(AssociateType.INDIVIDUAL);
     }
 
@@ -97,6 +101,7 @@ class AssociateIntegrationTest {
     @Test
     void shouldUpdateAssociateAndPreservePassword() throws Exception {
         AssociateResponse created = createAssociateViaApi("Alice", "alice@coop.com", "secret123", AssociateType.INDIVIDUAL);
+        String originalHash = associateJPARepository.findById(created.id()).orElseThrow().getPassword();
         UpdateAssociateRequest updateRequest = new UpdateAssociateRequest("Alice Corp", "corp@coop.com", AssociateType.COMPANY);
 
         mockMvc.perform(put(apiBase + "/associates/{id}", created.id())
@@ -112,7 +117,7 @@ class AssociateIntegrationTest {
         assertThat(updated.getName()).isEqualTo("Alice Corp");
         assertThat(updated.getEmail()).isEqualTo("corp@coop.com");
         assertThat(updated.getType()).isEqualTo(AssociateType.COMPANY);
-        assertThat(updated.getPassword()).isEqualTo("secret123");
+        assertThat(updated.getPassword()).isEqualTo(originalHash);
     }
 
     @Test
@@ -139,56 +144,71 @@ class AssociateIntegrationTest {
     }
 
     @Test
-    void shouldFailWhenCreatingAssociateWithDuplicateEmail() throws Exception {
+    void shouldReturn409ProblemDetailWhenCreatingAssociateWithDuplicateEmail() throws Exception {
         createAssociateViaApi("Alice", "alice@coop.com", "secret123", AssociateType.INDIVIDUAL);
         CreateAssociateRequest duplicate = new CreateAssociateRequest("Alice 2", "alice@coop.com", "other", AssociateType.COMPANY);
 
-        assertThatThrownBy(() -> mockMvc.perform(post(apiBase + "/associates")
+        mockMvc.perform(post(apiBase + "/associates")
                         .contentType(MediaType.APPLICATION_JSON)
-                        .content(objectMapper.writeValueAsString(duplicate))))
-                .isInstanceOf(ServletException.class)
-                .rootCause()
-                .isInstanceOf(IllegalArgumentException.class)
-                .hasMessageContaining("Email já cadastrado");
+                        .content(objectMapper.writeValueAsString(duplicate)))
+                .andExpect(status().isConflict())
+                .andExpect(content().contentTypeCompatibleWith(MediaType.APPLICATION_PROBLEM_JSON))
+                .andExpect(jsonPath("$.status").value(409))
+                .andExpect(jsonPath("$.title").value("Conflito de recurso"))
+                .andExpect(jsonPath("$.detail").value("Email já cadastrado: alice@coop.com"))
+                .andExpect(jsonPath("$.instance").value(apiBase + "/associates"))
+                .andExpect(jsonPath("$.timestamp").isNotEmpty());
 
         assertThat(associateJPARepository.count()).isEqualTo(1);
     }
 
     @Test
-    void shouldFailWhenFindingNonExistentAssociate() {
+    void shouldReturn404ProblemDetailWhenFindingNonExistentAssociate() throws Exception {
         UUID randomId = UUID.randomUUID();
+        String path = apiBase + "/associates/" + randomId;
 
-        assertThatThrownBy(() -> mockMvc.perform(get(apiBase + "/associates/{id}", randomId)))
-                .isInstanceOf(ServletException.class)
-                .rootCause()
-                .isInstanceOf(IllegalArgumentException.class)
-                .hasMessageContaining("Associado não encontrado");
+        mockMvc.perform(get(path))
+                .andExpect(status().isNotFound())
+                .andExpect(content().contentTypeCompatibleWith(MediaType.APPLICATION_PROBLEM_JSON))
+                .andExpect(jsonPath("$.status").value(404))
+                .andExpect(jsonPath("$.title").value("Recurso não encontrado"))
+                .andExpect(jsonPath("$.detail").value("Associado não encontrado: " + randomId))
+                .andExpect(jsonPath("$.instance").value(path))
+                .andExpect(jsonPath("$.timestamp").isNotEmpty());
     }
 
     @Test
-    void shouldFailWhenUpdatingToExistingEmail() throws Exception {
+    void shouldReturn409ProblemDetailWhenUpdatingToExistingEmail() throws Exception {
         AssociateResponse associate1 = createAssociateViaApi("Alice", "alice@coop.com", "secret123", AssociateType.INDIVIDUAL);
         AssociateResponse associate2 = createAssociateViaApi("Bob", "bob@coop.com", "pass456", AssociateType.INDIVIDUAL);
 
         UpdateAssociateRequest update = new UpdateAssociateRequest("Bob", associate1.email(), AssociateType.INDIVIDUAL);
+        String path = apiBase + "/associates/" + associate2.id();
 
-        assertThatThrownBy(() -> mockMvc.perform(put(apiBase + "/associates/{id}", associate2.id())
+        mockMvc.perform(put(path)
                         .contentType(MediaType.APPLICATION_JSON)
-                        .content(objectMapper.writeValueAsString(update))))
-                .isInstanceOf(ServletException.class)
-                .rootCause()
-                .isInstanceOf(IllegalArgumentException.class)
-                .hasMessageContaining("Email já cadastrado");
+                        .content(objectMapper.writeValueAsString(update)))
+                .andExpect(status().isConflict())
+                .andExpect(content().contentTypeCompatibleWith(MediaType.APPLICATION_PROBLEM_JSON))
+                .andExpect(jsonPath("$.status").value(409))
+                .andExpect(jsonPath("$.title").value("Conflito de recurso"))
+                .andExpect(jsonPath("$.detail").value("Email já cadastrado: " + associate1.email()))
+                .andExpect(jsonPath("$.instance").value(path))
+                .andExpect(jsonPath("$.timestamp").isNotEmpty());
     }
 
     @Test
-    void shouldFailWhenDeletingNonExistentAssociate() {
+    void shouldReturn404ProblemDetailWhenDeletingNonExistentAssociate() throws Exception {
         UUID randomId = UUID.randomUUID();
+        String path = apiBase + "/associates/" + randomId;
 
-        assertThatThrownBy(() -> mockMvc.perform(delete(apiBase + "/associates/{id}", randomId)))
-                .isInstanceOf(ServletException.class)
-                .rootCause()
-                .isInstanceOf(IllegalArgumentException.class)
-                .hasMessageContaining("Associado não encontrado");
+        mockMvc.perform(delete(path))
+                .andExpect(status().isNotFound())
+                .andExpect(content().contentTypeCompatibleWith(MediaType.APPLICATION_PROBLEM_JSON))
+                .andExpect(jsonPath("$.status").value(404))
+                .andExpect(jsonPath("$.title").value("Recurso não encontrado"))
+                .andExpect(jsonPath("$.detail").value("Associado não encontrado: " + randomId))
+                .andExpect(jsonPath("$.instance").value(path))
+                .andExpect(jsonPath("$.timestamp").isNotEmpty());
     }
 }

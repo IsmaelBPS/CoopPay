@@ -3,6 +3,7 @@ package com.ismael.CoopPay.ledger.api;
 import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.content;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
@@ -15,6 +16,7 @@ import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.webmvc.test.autoconfigure.WebMvcTest;
+import org.springframework.http.MediaType;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
 
@@ -22,6 +24,7 @@ import com.ismael.CoopPay.ledger.LedgerService;
 import com.ismael.CoopPay.ledger.domain.LedgerEntry;
 import com.ismael.CoopPay.ledger.domain.LedgerEntryType;
 import com.ismael.CoopPay.ledger.domain.LedgerOperationType;
+import com.ismael.CoopPay.shared.exception.ResourceNotFoundException;
 
 @WebMvcTest(LedgerController.class)
 class LedgerControllerTest {
@@ -72,9 +75,30 @@ class LedgerControllerTest {
     @Test
     void getById_shouldReturn400_whenIdIsNotValidUuid() throws Exception {
         mockMvc.perform(get(apiBase + "/ledger/not-a-uuid"))
-                .andExpect(status().isBadRequest());
+                .andExpect(status().isBadRequest())
+                .andExpect(content().contentTypeCompatibleWith(MediaType.APPLICATION_PROBLEM_JSON))
+                .andExpect(jsonPath("$.status").value(400))
+                .andExpect(jsonPath("$.title").value("Parâmetro inválido"))
+                .andExpect(jsonPath("$.detail").value("Parâmetro 'id' inválido: 'not-a-uuid'"))
+                .andExpect(jsonPath("$.instance").value(apiBase + "/ledger/not-a-uuid"))
+                .andExpect(jsonPath("$.timestamp").isNotEmpty());
 
         verifyNoInteractions(service);
+    }
+
+    @Test
+    void getById_shouldReturn404_whenNotFound() throws Exception {
+        UUID id = UUID.randomUUID();
+        when(service.findById(id)).thenThrow(new ResourceNotFoundException("Lançamento não encontrado: " + id));
+
+        mockMvc.perform(get(apiBase + "/ledger/{id}", id))
+                .andExpect(status().isNotFound())
+                .andExpect(content().contentTypeCompatibleWith(MediaType.APPLICATION_PROBLEM_JSON))
+                .andExpect(jsonPath("$.status").value(404))
+                .andExpect(jsonPath("$.title").value("Recurso não encontrado"))
+                .andExpect(jsonPath("$.detail").value("Lançamento não encontrado: " + id))
+                .andExpect(jsonPath("$.instance").value(apiBase + "/ledger/" + id))
+                .andExpect(jsonPath("$.timestamp").isNotEmpty());
     }
 
     @Test
@@ -125,7 +149,13 @@ class LedgerControllerTest {
     @Test
     void getByAccountId_shouldReturn400_whenAccountIdIsNotValidUuid() throws Exception {
         mockMvc.perform(get(apiBase + "/ledger/accounts/not-a-uuid"))
-                .andExpect(status().isBadRequest());
+                .andExpect(status().isBadRequest())
+                .andExpect(content().contentTypeCompatibleWith(MediaType.APPLICATION_PROBLEM_JSON))
+                .andExpect(jsonPath("$.status").value(400))
+                .andExpect(jsonPath("$.title").value("Parâmetro inválido"))
+                .andExpect(jsonPath("$.detail").value("Parâmetro 'accountId' inválido: 'not-a-uuid'"))
+                .andExpect(jsonPath("$.instance").value(apiBase + "/ledger/accounts/not-a-uuid"))
+                .andExpect(jsonPath("$.timestamp").isNotEmpty());
 
         verifyNoInteractions(service);
     }
@@ -178,7 +208,13 @@ class LedgerControllerTest {
     @Test
     void getByTransactionId_shouldReturn400_whenTransactionIdIsNotValidUuid() throws Exception {
         mockMvc.perform(get(apiBase + "/ledger/transactions/not-a-uuid"))
-                .andExpect(status().isBadRequest());
+                .andExpect(status().isBadRequest())
+                .andExpect(content().contentTypeCompatibleWith(MediaType.APPLICATION_PROBLEM_JSON))
+                .andExpect(jsonPath("$.status").value(400))
+                .andExpect(jsonPath("$.title").value("Parâmetro inválido"))
+                .andExpect(jsonPath("$.detail").value("Parâmetro 'transactionId' inválido: 'not-a-uuid'"))
+                .andExpect(jsonPath("$.instance").value(apiBase + "/ledger/transactions/not-a-uuid"))
+                .andExpect(jsonPath("$.timestamp").isNotEmpty());
 
         verifyNoInteractions(service);
     }

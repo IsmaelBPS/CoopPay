@@ -1,5 +1,7 @@
 package com.ismael.CoopPay.associate.api;
 
+import static org.hamcrest.Matchers.containsInAnyOrder;
+import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
@@ -7,6 +9,7 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.content;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
@@ -23,6 +26,8 @@ import org.springframework.test.web.servlet.MockMvc;
 import com.ismael.CoopPay.associate.AssociateService;
 import com.ismael.CoopPay.associate.domain.Associate;
 import com.ismael.CoopPay.associate.domain.AssociateType;
+import com.ismael.CoopPay.shared.exception.ResourceConflictException;
+import com.ismael.CoopPay.shared.exception.ResourceNotFoundException;
 
 import tools.jackson.databind.ObjectMapper;
 
@@ -66,9 +71,34 @@ class AssociateControllerTest {
         mockMvc.perform(post(apiBase + "/associates")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(invalid)))
-                .andExpect(status().isBadRequest());
+                .andExpect(status().isBadRequest())
+                .andExpect(content().contentTypeCompatibleWith(MediaType.APPLICATION_PROBLEM_JSON))
+                .andExpect(jsonPath("$.status").value(400))
+                .andExpect(jsonPath("$.title").value("Dados de entrada inválidos"))
+                .andExpect(jsonPath("$.detail").value("Um ou mais campos estão inválidos"))
+                .andExpect(jsonPath("$.instance").value(apiBase + "/associates"))
+                .andExpect(jsonPath("$.timestamp").isNotEmpty())
+                .andExpect(jsonPath("$.errors[*].field", containsInAnyOrder("email", "name", "password", "type")));
 
         verifyNoInteractions(service);
+    }
+
+    @Test
+    void create_shouldReturn409_whenEmailAlreadyExists() throws Exception {
+        CreateAssociateRequest request = new CreateAssociateRequest("Alice", "alice@coop.com", "secret123", AssociateType.INDIVIDUAL);
+        when(service.create("Alice", "alice@coop.com", "secret123", AssociateType.INDIVIDUAL))
+                .thenThrow(new ResourceConflictException("Email já cadastrado: alice@coop.com"));
+
+        mockMvc.perform(post(apiBase + "/associates")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(request)))
+                .andExpect(status().isConflict())
+                .andExpect(content().contentTypeCompatibleWith(MediaType.APPLICATION_PROBLEM_JSON))
+                .andExpect(jsonPath("$.status").value(409))
+                .andExpect(jsonPath("$.title").value("Conflito de recurso"))
+                .andExpect(jsonPath("$.detail").value("Email já cadastrado: alice@coop.com"))
+                .andExpect(jsonPath("$.instance").value(apiBase + "/associates"))
+                .andExpect(jsonPath("$.timestamp").isNotEmpty());
     }
 
     @Test
@@ -89,9 +119,30 @@ class AssociateControllerTest {
     @Test
     void getAssociate_shouldReturn400_whenIdIsNotValidUuid() throws Exception {
         mockMvc.perform(get(apiBase + "/associates/not-a-uuid"))
-                .andExpect(status().isBadRequest());
+                .andExpect(status().isBadRequest())
+                .andExpect(content().contentTypeCompatibleWith(MediaType.APPLICATION_PROBLEM_JSON))
+                .andExpect(jsonPath("$.status").value(400))
+                .andExpect(jsonPath("$.title").value("Parâmetro inválido"))
+                .andExpect(jsonPath("$.detail").value("Parâmetro 'id' inválido: 'not-a-uuid'"))
+                .andExpect(jsonPath("$.instance").value(apiBase + "/associates/not-a-uuid"))
+                .andExpect(jsonPath("$.timestamp").isNotEmpty());
 
         verifyNoInteractions(service);
+    }
+
+    @Test
+    void getAssociate_shouldReturn404_whenNotFound() throws Exception {
+        UUID id = UUID.randomUUID();
+        when(service.findById(id)).thenThrow(new ResourceNotFoundException("Associado não encontrado: " + id));
+
+        mockMvc.perform(get(apiBase + "/associates/{id}", id))
+                .andExpect(status().isNotFound())
+                .andExpect(content().contentTypeCompatibleWith(MediaType.APPLICATION_PROBLEM_JSON))
+                .andExpect(jsonPath("$.status").value(404))
+                .andExpect(jsonPath("$.title").value("Recurso não encontrado"))
+                .andExpect(jsonPath("$.detail").value("Associado não encontrado: " + id))
+                .andExpect(jsonPath("$.instance").value(apiBase + "/associates/" + id))
+                .andExpect(jsonPath("$.timestamp").isNotEmpty());
     }
 
     @Test
@@ -120,9 +171,48 @@ class AssociateControllerTest {
         mockMvc.perform(put(apiBase + "/associates/{id}", id)
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(invalid)))
-                .andExpect(status().isBadRequest());
+                .andExpect(status().isBadRequest())
+                .andExpect(content().contentTypeCompatibleWith(MediaType.APPLICATION_PROBLEM_JSON))
+                .andExpect(jsonPath("$.status").value(400))
+                .andExpect(jsonPath("$.title").value("Dados de entrada inválidos"))
+                .andExpect(jsonPath("$.instance").value(apiBase + "/associates/" + id))
+                .andExpect(jsonPath("$.errors[*].field", containsInAnyOrder("email", "name", "type")));
 
         verifyNoInteractions(service);
+    }
+
+    @Test
+    void update_shouldReturn404_whenNotFound() throws Exception {
+        UUID id = UUID.randomUUID();
+        UpdateAssociateRequest request = new UpdateAssociateRequest("Alice", "alice@coop.com", AssociateType.INDIVIDUAL);
+        when(service.update(id, "Alice", "alice@coop.com", AssociateType.INDIVIDUAL))
+                .thenThrow(new ResourceNotFoundException("Associado não encontrado: " + id));
+
+        mockMvc.perform(put(apiBase + "/associates/{id}", id)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(request)))
+                .andExpect(status().isNotFound())
+                .andExpect(content().contentTypeCompatibleWith(MediaType.APPLICATION_PROBLEM_JSON))
+                .andExpect(jsonPath("$.status").value(404))
+                .andExpect(jsonPath("$.title").value("Recurso não encontrado"))
+                .andExpect(jsonPath("$.detail").value("Associado não encontrado: " + id));
+    }
+
+    @Test
+    void update_shouldReturn409_whenEmailAlreadyExists() throws Exception {
+        UUID id = UUID.randomUUID();
+        UpdateAssociateRequest request = new UpdateAssociateRequest("Alice", "taken@coop.com", AssociateType.INDIVIDUAL);
+        when(service.update(id, "Alice", "taken@coop.com", AssociateType.INDIVIDUAL))
+                .thenThrow(new ResourceConflictException("Email já cadastrado: taken@coop.com"));
+
+        mockMvc.perform(put(apiBase + "/associates/{id}", id)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(request)))
+                .andExpect(status().isConflict())
+                .andExpect(content().contentTypeCompatibleWith(MediaType.APPLICATION_PROBLEM_JSON))
+                .andExpect(jsonPath("$.status").value(409))
+                .andExpect(jsonPath("$.title").value("Conflito de recurso"))
+                .andExpect(jsonPath("$.detail").value("Email já cadastrado: taken@coop.com"));
     }
 
     @Test
@@ -133,5 +223,19 @@ class AssociateControllerTest {
                 .andExpect(status().isNoContent());
 
         verify(service).delete(id);
+    }
+
+    @Test
+    void delete_shouldReturn404_whenNotFound() throws Exception {
+        UUID id = UUID.randomUUID();
+        doThrow(new ResourceNotFoundException("Associado não encontrado: " + id))
+                .when(service).delete(id);
+
+        mockMvc.perform(delete(apiBase + "/associates/{id}", id))
+                .andExpect(status().isNotFound())
+                .andExpect(content().contentTypeCompatibleWith(MediaType.APPLICATION_PROBLEM_JSON))
+                .andExpect(jsonPath("$.status").value(404))
+                .andExpect(jsonPath("$.title").value("Recurso não encontrado"))
+                .andExpect(jsonPath("$.detail").value("Associado não encontrado: " + id));
     }
 }

@@ -19,7 +19,7 @@ const API_BASE = '/api/v1';
 
 async function parseErrorBody(response: Response): Promise<{ message: string; details?: unknown }> {
   const contentType = response.headers.get('content-type') ?? '';
-  if (contentType.includes('application/json')) {
+  if (contentType.includes('application/json') || contentType.includes('application/problem+json')) {
     try {
       const json = (await response.json()) as Record<string, unknown>;
       const msg =
