@@ -50,6 +50,9 @@ class LedgerIntegrationTest {
     private MockMvc mockMvc;
 
     @Autowired
+    private org.springframework.jdbc.core.JdbcTemplate jdbcTemplate;
+
+    @Autowired
     private LedgerService ledgerService;
 
     @MockitoSpyBean
@@ -63,13 +66,13 @@ class LedgerIntegrationTest {
 
     @BeforeEach
     void setUp() {
-        ledgerEntryJPARepository.deleteAll();
+        jdbcTemplate.execute("TRUNCATE TABLE ledger_entries");
     }
 
     @Test
     void shouldRecordEntryAndQueryById() throws Exception {
         UUID transactionId = UUID.randomUUID();
-        UUID accountId = UUID.randomUUID();
+        UUID accountId = com.ismael.CoopPay.TestData.createAccount(jdbcTemplate);
 
         LedgerEntry recorded = ledgerService.recordEntry(
                 transactionId,
@@ -101,7 +104,7 @@ class LedgerIntegrationTest {
 
     @Test
     void shouldReturnExistingEntryWithoutDuplicating_whenIdempotencyKeyRepeats() {
-        UUID accountId = UUID.randomUUID();
+        UUID accountId = com.ismael.CoopPay.TestData.createAccount(jdbcTemplate);
         String idempotencyKey = "idem-repeat-" + UUID.randomUUID();
 
         LedgerEntry first = ledgerService.recordEntry(
@@ -132,7 +135,7 @@ class LedgerIntegrationTest {
 
     @RepeatedTest(20)
     void shouldCreateSingleEntryAndReturnSameId_whenSameIdempotencyKeyIsRecordedConcurrently() throws Exception {
-        UUID accountId = UUID.randomUUID();
+        UUID accountId = com.ismael.CoopPay.TestData.createAccount(jdbcTemplate);
         String idempotencyKey = "idem-race-" + UUID.randomUUID();
         int threads = 16;
         AtomicInteger lostRace = new AtomicInteger();
@@ -173,8 +176,8 @@ class LedgerIntegrationTest {
 
     @Test
     void shouldReturnAccountEntriesOrderedByCreatedAtDesc_andIsolateOtherAccounts() throws Exception {
-        UUID accountA = UUID.randomUUID();
-        UUID accountB = UUID.randomUUID();
+        UUID accountA = com.ismael.CoopPay.TestData.createAccount(jdbcTemplate);
+        UUID accountB = com.ismael.CoopPay.TestData.createAccount(jdbcTemplate);
         Instant olderTime = Instant.parse("2026-11-23T10:00:00Z");
         Instant newerTime = Instant.parse("2026-11-23T12:00:00Z");
 
@@ -230,8 +233,8 @@ class LedgerIntegrationTest {
     void shouldReturnTransactionEntriesOrderedByCreatedAtAsc() throws Exception {
         UUID transactionId = UUID.randomUUID();
         UUID otherTransactionId = UUID.randomUUID();
-        UUID accountSource = UUID.randomUUID();
-        UUID accountTarget = UUID.randomUUID();
+        UUID accountSource = com.ismael.CoopPay.TestData.createAccount(jdbcTemplate);
+        UUID accountTarget = com.ismael.CoopPay.TestData.createAccount(jdbcTemplate);
         String idempotencyKey = "idem-tx-" + UUID.randomUUID();
 
         LedgerEntry debit = ledgerRepository.save(new LedgerEntry(

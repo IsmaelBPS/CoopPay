@@ -2,6 +2,7 @@ package com.ismael.CoopPay.ledger;
 
 import java.math.BigDecimal;
 import java.util.List;
+import java.util.Optional;
 import java.util.UUID;
 
 import org.springframework.stereotype.Service;
@@ -79,6 +80,25 @@ public class LedgerService {
         log.info("Lançamento registrado: entryId={}, transactionId={}, accountId={}, entryType={}, operationType={}, amount={}",
                 saved.getId(), transactionId, accountId, entryType, operationType, amount);
         return saved;
+    }
+
+    /** Lançamento já registrado com a mesma chave; conflito se a chave foi usada com dados diferentes. */
+    @Transactional(readOnly = true)
+    public Optional<LedgerEntry> findReplay(
+            String idempotencyKey,
+            UUID accountId,
+            LedgerEntryType entryType,
+            LedgerOperationType operationType,
+            BigDecimal amount
+    ) {
+        return ledgerRepository.findByIdempotencyKeyAndAccountIdAndEntryType(idempotencyKey, accountId, entryType)
+                .map(saved -> {
+                    if (saved.getAmount().compareTo(amount) != 0 || saved.getOperationType() != operationType) {
+                        throw new ResourceConflictException(
+                                "Chave de idempotência já utilizada com dados diferentes: " + idempotencyKey);
+                    }
+                    return saved;
+                });
     }
 
     @Transactional(readOnly = true)

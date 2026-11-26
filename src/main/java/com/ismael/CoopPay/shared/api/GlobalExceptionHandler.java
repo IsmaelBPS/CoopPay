@@ -22,6 +22,8 @@ import org.springframework.web.context.request.WebRequest;
 import org.springframework.web.method.annotation.MethodArgumentTypeMismatchException;
 import org.springframework.web.servlet.mvc.method.annotation.ResponseEntityExceptionHandler;
 
+import com.ismael.CoopPay.shared.exception.AccountNotActiveException;
+import com.ismael.CoopPay.shared.exception.InsufficientFundsException;
 import com.ismael.CoopPay.shared.exception.ResourceConflictException;
 import com.ismael.CoopPay.shared.exception.ResourceNotFoundException;
 
@@ -50,6 +52,20 @@ public class GlobalExceptionHandler extends ResponseEntityExceptionHandler {
     public ResponseEntity<Object> handleResourceConflict(ResourceConflictException ex, WebRequest request) {
         log.warn("Conflito de recurso: path={}, message={}", extractPath(request), ex.getMessage());
         ProblemDetail problem = problemDetail(HttpStatus.CONFLICT, "Conflito de recurso", ex.getMessage());
+        return handleExceptionInternal(ex, problem, new HttpHeaders(), HttpStatus.CONFLICT, request);
+    }
+
+    @ExceptionHandler(InsufficientFundsException.class)
+    public ResponseEntity<Object> handleInsufficientFunds(InsufficientFundsException ex, WebRequest request) {
+        log.warn("Saldo insuficiente: path={}, message={}", extractPath(request), ex.getMessage());
+        ProblemDetail problem = problemDetail(HttpStatus.UNPROCESSABLE_ENTITY, "Saldo insuficiente", ex.getMessage());
+        return handleExceptionInternal(ex, problem, new HttpHeaders(), HttpStatus.UNPROCESSABLE_ENTITY, request);
+    }
+
+    @ExceptionHandler(AccountNotActiveException.class)
+    public ResponseEntity<Object> handleAccountNotActive(AccountNotActiveException ex, WebRequest request) {
+        log.warn("Conta inativa: path={}, message={}", extractPath(request), ex.getMessage());
+        ProblemDetail problem = problemDetail(HttpStatus.CONFLICT, "Conta inativa", ex.getMessage());
         return handleExceptionInternal(ex, problem, new HttpHeaders(), HttpStatus.CONFLICT, request);
     }
 

@@ -50,11 +50,15 @@ class AssociateIntegrationTest {
     @Autowired
     private AssociateJPARepository associateJPARepository;
 
+    @Autowired
+    private org.springframework.jdbc.core.JdbcTemplate jdbcTemplate;
+
     @Value("${app.routes.api-base}")
     private String apiBase;
 
     @BeforeEach
     void setUp() {
+        jdbcTemplate.execute("TRUNCATE TABLE ledger_entries, accounts");
         associateJPARepository.deleteAll();
     }
 

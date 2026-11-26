@@ -33,7 +33,7 @@ src/main/java/com/ismael/CoopPay/
 ## Tecnologias
 
 ### Em uso na aplicação
-- **Core & API:** Java 17, Maven (`mvnw`), Spring Boot 4.2.0, Spring Web MVC, Bean Validation, Springdoc OpenAPI (Swagger UI), Lombok, Spring Boot DevTools
+- **Core & API:** Java 21, Maven (`mvnw`), Spring Boot 4.2.0, Spring Web MVC, Bean Validation, Springdoc OpenAPI (Swagger UI), Lombok, Spring Boot DevTools
 - **Persistência:** PostgreSQL 16 (`postgres:16-alpine`), Spring Data JPA / Hibernate, Flyway (`flyway-database-postgresql`)
 - **Observabilidade:** Spring Boot Actuator (`/actuator/health`, `/actuator/info`, `/actuator/metrics`, `/actuator/prometheus`), Micrometer + Prometheus, Micrometer Tracing + OpenTelemetry (exportação OTLP para Grafana Tempo e `traceId`/`spanId` no MDC/logs), métricas customizadas de negócio, observabilidade Kafka habilitada e perfil `prod` com logs estruturados ECS (`application-prod.properties`)
 - **Infraestrutura & Testes:** Docker Compose (PostgreSQL, Kafka, Prometheus, Tempo, Grafana), JUnit 5, Spring Boot Test, Testcontainers (PostgreSQL e Kafka), PITest (`pitest-maven`)
@@ -50,7 +50,7 @@ src/main/java/com/ismael/CoopPay/
 ## Como executar localmente
 
 ### Pré-requisitos
-- Java 17+
+- Java 21+
 - Docker e Docker Compose
 
 ### 1. Configurar variáveis de ambiente
@@ -139,16 +139,41 @@ A pipeline de CI (`.github/workflows/ci.yml`) roda a cada push na `main` e em pu
 ---
 
 ## Roadmap
-- [ ] Módulo de contas (`account`): criação de conta, consulta de saldo, depósito, saque e transferência entre associados
-- [ ] Controle de concorrência de saldo com lock na conta (`SELECT ... FOR UPDATE` / lock pessimista ou otimista com `@Version`) para evitar race conditions, duplicação de operações e débitos simultâneos/quase instantâneos sobre o mesmo saldo desatualizado
-- [ ] Ledger imutável de movimentações para auditoria e rastreabilidade
-- [ ] Publicação e consumo de eventos financeiros no Apache Kafka
+- [x] Implementação completa do módulo de contas (`account`):
+  - [x] Migration Flyway criando a tabela `accounts` (vínculo com `associates`, saldo `NUMERIC(19, 2)`, status e timestamps)
+  - [x] Camada de persistência (`account/infrastructure/persistence/`: `AccountEntity`, `AccountJPARepository` e `AccountRepositoryAdapter`)
+  - [x] Regras de negócio no `AccountService` integradas ao `LedgerService` (abertura de conta, consulta de saldo, depósito, saque e transferência entre associados)
+  - [x] Endpoints REST e DTOs validados em `account/api/` (`AccountController`, requests/responses e limpeza do stub `balanceRequest`)
+  - [x] Testes unitários e de integração (Testcontainers) para o módulo `account` e conexão do frontend (`AccountsPage.tsx`) com a API real
+- [x] Controle de concorrência de saldo e consistência transacional com **lock pessimista** (`@Lock(LockModeType.PESSIMISTIC_WRITE)` / `SELECT ... FOR UPDATE` no PostgreSQL):
+  - [x] Bloqueio exclusivo da linha da conta nas operações de depósito, saque e transferência para evitar *race conditions* e débitos simultâneos sobre saldo desatualizado
+  - [x] Prevenção de *deadlock* em transferências entre duas contas adquirindo os locks em ordem determinística (ordenação por `accountId`)
+  - [x] Mapeamento de exceções de domínio financeiro (ex.: saldo insuficiente, conta inexistente/bloqueada e transferência para a mesma conta) no `GlobalExceptionHandler` (`ProblemDetail`)
+  - [x] Testes de integração concorrentes com múltiplas threads e PostgreSQL real (Testcontainers) validando ausência de saldo negativo e de *deadlocks*
+- [x] Ledger imutável de movimentações para auditoria e rastreabilidade (`@Immutable` na entidade, trigger no PostgreSQL bloqueando `UPDATE`/`DELETE` e FK `ledger_entries.account_id` → `accounts`)
+- [ ] Mensageria Assíncrona (Apache Kafka):
+  - [ ] Definição de tópicos e contratos de eventos financeiros (ex.: depósito, saque e transferência confirmados)
+  - [ ] Publicação confiável pós-commit (`@TransactionalEventListener(AFTER_COMMIT)` ou padrão Transactional Outbox) evitando eventos de transações que sofreram rollback
+  - [ ] Implementação de producers e consumers (`KafkaTemplate` / `@KafkaListener`) com tratamento de falhas/DLQ e idempotência no consumo
+  - [ ] Testes de integração com Kafka real via Testcontainers validando publicação, consumo e propagação de `traceId`
+- [ ] Autenticação, Autorização e Hardening:
+  - [ ] Inclusão do `spring-boot-starter-security` com autenticação (ex.: login + JWT) e proteção das rotas da API
+  - [ ] Validação de posse/autorização garantindo que o associado autenticado acesse/movimente apenas suas próprias contas e extratos
+  - [ ] Configuração explícita de CORS / proxy reverso para o frontend em produção
+  - [ ] Hardening de produção no `docker-compose.yml` (remover acesso anônimo de admin do Grafana e restringir exposições locais)
+- [ ] Conexão do Frontend com o Backend:
+  - [x] Substituir dados mockados de `AccountsPage.tsx` (`PREVIEW_ACCOUNTS`) e habilitar criação de conta, consulta de saldo, depósito, saque e transferência via API
+  - [x] Conectar `LedgerPage.tsx` aos endpoints reais de `LedgerController` (`/api/v1/ledger/accounts/{accountId}` e `/transactions/{transactionId}`) removendo `PREVIEW_LEDGER`
+- [ ] Testes, Observabilidade de Contas e Ajustes Pontuais:
+  - [ ] Logs estruturados e métricas de negócio (`MeterRegistry`) no `AccountService` e fluxos de concorrência/locking (operações, saldo insuficiente e conflitos)
+  - [ ] Suíte de testes unitários e de integração (Testcontainers) cobrindo `account/` e mensageria Kafka
+  - [ ] Endpoints de listagem/paginação (`GET /api/v1/associates` e paginação no `LedgerController` em `/accounts/{accountId}`)
+  - [x] Alinhar `<java.version>` no `pom.xml` (17 → 21) com `AGENTS.md` e `.github/workflows/ci.yml`
 - [x] Configuração explícita de observabilidade básica e health checks via Spring Boot Actuator (`traceId`/`spanId` com OpenTelemetry e logs de negócio)
 - [x] Métricas Prometheus (`/actuator/prometheus`) e métricas customizadas de negócio (`cooppay.ledger.entries.*`, `cooppay.associates.operations`)
 - [x] Propagação de `traceId` preparada no Apache Kafka (`spring.kafka.template.observation-enabled=true` e `spring.kafka.listener.observation-enabled=true`)
 - [x] Stack local de observabilidade no Docker Compose (Prometheus, Grafana Tempo e Grafana com datasources/dashboard provisionados) e exportação OTLP
 - [x] Perfil de produção (`application-prod.properties` com logs estruturados ECS, restrição de `show-details` no Actuator e `sampling.probability=0.1`)
-- [ ] Logs e métricas de negócio no módulo de contas (`AccountService`) e fluxos de concorrência/locking (saldo insuficiente e conflitos de concorrência)
 - [x] Pipeline de CI no GitHub Actions (backend `./mvnw test` com Testcontainers, build do frontend e validação do `docker-compose.yml`)
 - [x] Segurança de senha dos associados (hashing seguro com BCrypt/Argon2 antes de persistir)
 - [x] Mitigação de race conditions na idempotência (tratamento de violação de chave única para requisições concorrentes com mesma `idempotencyKey`)

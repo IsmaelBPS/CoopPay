@@ -32,17 +32,20 @@ class LedgerEntryEntityIntegrationTest {
     @Autowired
     private TransactionTemplate transactionTemplate;
 
+    @Autowired
+    private org.springframework.jdbc.core.JdbcTemplate jdbcTemplate;
+
     @BeforeEach
     void setUp() {
         transactionTemplate.executeWithoutResult(status ->
-            entityManager.createNativeQuery("DELETE FROM ledger_entries").executeUpdate()
+            entityManager.createNativeQuery("TRUNCATE TABLE ledger_entries").executeUpdate()
         );
     }
 
     @Test
     void shouldPersistAndConvertLedgerEntryFromAndToDomain() {
         UUID transactionId = UUID.randomUUID();
-        UUID accountId = UUID.randomUUID();
+        UUID accountId = com.ismael.CoopPay.TestData.createAccount(jdbcTemplate);
         LedgerEntry domainEntry = new LedgerEntry(
             null,
             transactionId,
@@ -90,8 +93,8 @@ class LedgerEntryEntityIntegrationTest {
     @Test
     void shouldAllowDebitAndCreditForSameIdempotencyKeyAcrossDifferentAccounts() {
         UUID transactionId = UUID.randomUUID();
-        UUID accountA = UUID.randomUUID();
-        UUID accountB = UUID.randomUUID();
+        UUID accountA = com.ismael.CoopPay.TestData.createAccount(jdbcTemplate);
+        UUID accountB = com.ismael.CoopPay.TestData.createAccount(jdbcTemplate);
         String idempotencyKey = "idem-" + UUID.randomUUID();
 
         transactionTemplate.executeWithoutResult(status -> {
@@ -132,7 +135,7 @@ class LedgerEntryEntityIntegrationTest {
 
     @Test
     void shouldRejectDuplicateIdempotencyKeyForSameAccountAndEntryType() {
-        UUID accountA = UUID.randomUUID();
+        UUID accountA = com.ismael.CoopPay.TestData.createAccount(jdbcTemplate);
         String idempotencyKey = "idem-" + UUID.randomUUID();
 
         transactionTemplate.executeWithoutResult(status -> {
@@ -172,7 +175,7 @@ class LedgerEntryEntityIntegrationTest {
 
     @Test
     void shouldRejectNonPositiveAmount() {
-        UUID accountId = UUID.randomUUID();
+        UUID accountId = com.ismael.CoopPay.TestData.createAccount(jdbcTemplate);
 
         assertThatThrownBy(() -> transactionTemplate.executeWithoutResult(status -> {
             LedgerEntryEntity zeroEntry = LedgerEntryEntity.fromDomain(new LedgerEntry(
