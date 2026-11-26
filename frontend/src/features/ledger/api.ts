@@ -3,7 +3,7 @@ import { apiRequest } from '../../shared/api/http';
 export type LedgerEntryType = 'CREDIT' | 'DEBIT';
 export type LedgerOperationType = string;
 
-export interface LedgerEntryResponse {
+export type LedgerEntryResponse = {
   id: string;
   transactionId: string;
   accountId: string;
@@ -14,7 +14,7 @@ export interface LedgerEntryResponse {
   idempotencyKey: string;
   description: string | null;
   createdAt: string;
-}
+};
 
 export function getLedgerByAccount(accountId: string): Promise<LedgerEntryResponse[]> {
   return apiRequest(`/ledger/accounts/${encodeURIComponent(accountId)}`);
