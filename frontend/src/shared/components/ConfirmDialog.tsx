@@ -1,4 +1,5 @@
-import { useEffect, useId, useRef } from 'react';
+import { useEffect, useId, useRef, type FormEvent, type SyntheticEvent } from 'react';
+import { closeTopLayer, supportsTopLayerExit } from '../utils/motion';
 
 interface ConfirmDialogProps {
   open: boolean;
@@ -28,10 +29,13 @@ export function ConfirmDialog({
     const dialog = dialogRef.current;
     if (!dialog) return;
 
-    if (open && !dialog.open) {
-      dialog.showModal();
-    } else if (!open && dialog.open) {
-      dialog.close();
+    if (open) {
+      dialog.removeAttribute('data-closing');
+      if (!dialog.open) {
+        dialog.showModal();
+      }
+    } else if (dialog.open) {
+      void closeTopLayer(dialog);
     }
   }, [open]);
 
@@ -48,11 +52,27 @@ export function ConfirmDialog({
     }
   };
 
+  const handleCancel = (event: SyntheticEvent<HTMLDialogElement>) => {
+    if (!supportsTopLayerExit()) {
+      event.preventDefault();
+      void closeTopLayer(event.currentTarget, 'cancel');
+    }
+  };
+
+  const handleFormSubmit = (event: FormEvent<HTMLFormElement>) => {
+    if (!supportsTopLayerExit() && dialogRef.current) {
+      event.preventDefault();
+      const submitter = (event.nativeEvent as SubmitEvent).submitter as HTMLButtonElement | null;
+      void closeTopLayer(dialogRef.current, submitter?.value ?? 'cancel');
+    }
+  };
+
   return (
     <dialog
       ref={dialogRef}
       aria-labelledby={titleId}
       className="coop-dialog"
+      onCancel={handleCancel}
       onClose={handleClose}
     >
       <div className="coop-dialog-body">
@@ -60,7 +80,7 @@ export function ConfirmDialog({
           {title}
         </h3>
         <p className="coop-dialog-description">{description}</p>
-        <form method="dialog" className="coop-dialog-actions">
+        <form method="dialog" className="coop-dialog-actions" onSubmit={handleFormSubmit}>
           <button
             type="submit"
             value="cancel"

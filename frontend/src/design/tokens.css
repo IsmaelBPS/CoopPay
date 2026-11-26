@@ -47,6 +47,22 @@
     --radius-pill: 100px;
   }
 
+  [data-theme='dark'] {
+    --color-brand-primary: #4ea822;
+    --color-brand-hover: #3c8a18;
+    --color-brand-deep: #072d13;
+    --color-brand-tint: #1b2e1b;
+    --color-ink-strong: #e6ebe6;
+    --color-ink-heading: #e6ebe6;
+    --color-ink-body: #d3dcd3;
+    --color-ink-muted: #b3bdb3;
+    --color-border: #2d352d;
+    --color-border-subtle: #232a23;
+    --color-surface-muted: #202620;
+    --color-surface-page: #121512;
+    --color-surface-card: #1a1e1a;
+  }
+
   * {
     box-sizing: border-box;
   }
@@ -58,6 +74,9 @@
     font-family: var(--font-sans);
     color: var(--color-ink-body);
     background-color: var(--color-surface-page);
+    transition:
+      background-color var(--motion-base) var(--ease-in-out),
+      color var(--motion-base) var(--ease-in-out);
     -webkit-font-smoothing: antialiased;
   }
 
@@ -75,6 +94,7 @@
   a {
     color: var(--color-brand-primary);
     text-decoration: none;
+    transition: color var(--motion-base) var(--ease-in-out);
   }
 
   a:hover {
@@ -248,6 +268,9 @@
     justify-content: space-between;
     gap: 16px;
     flex-wrap: wrap;
+    transition:
+      background-color var(--motion-base) var(--ease-in-out),
+      border-color var(--motion-base) var(--ease-in-out);
   }
 
   .coop-page-title {
@@ -281,6 +304,10 @@
     border: 1px solid var(--color-border);
     border-radius: var(--radius-md);
     padding: 20px;
+    transition:
+      background-color var(--motion-base) var(--ease-in-out),
+      border-color var(--motion-base) var(--ease-in-out),
+      color var(--motion-base) var(--ease-in-out);
   }
 
   .coop-card-header {
@@ -477,16 +504,55 @@
     color: var(--color-ink-body);
     max-width: 440px;
     width: calc(100% - 32px);
+    opacity: 0;
+    pointer-events: none;
+    transition-property: opacity, transform, display, overlay;
+    transition-duration: var(--motion-base);
+    transition-timing-function: var(--ease-in);
+    transition-behavior: allow-discrete;
   }
 
   dialog.coop-dialog:modal {
     overscroll-behavior: contain;
   }
 
+  dialog.coop-dialog[open]:where(:not([data-closing])) {
+    opacity: 1;
+    pointer-events: auto;
+    transition-duration: var(--motion-slow);
+    transition-timing-function: var(--ease-out);
+
+    @starting-style {
+      opacity: 0;
+    }
+
+    @media (prefers-reduced-motion: no-preference) {
+      transform: translateY(0);
+
+      @starting-style {
+        transform: translateY(8px);
+      }
+    }
+  }
+
   dialog.coop-dialog::backdrop {
     overflow: hidden;
     overscroll-behavior: contain;
-    background: rgba(12, 14, 12, 0.45);
+    background-color: rgba(12, 14, 12, 0);
+    transition-property: background-color, display, overlay;
+    transition-duration: var(--motion-base);
+    transition-timing-function: var(--ease-in);
+    transition-behavior: allow-discrete;
+  }
+
+  dialog.coop-dialog[open]:where(:not([data-closing]))::backdrop {
+    background-color: rgba(12, 14, 12, 0.45);
+    transition-duration: var(--motion-slow);
+    transition-timing-function: var(--ease-out);
+
+    @starting-style {
+      background-color: rgba(12, 14, 12, 0);
+    }
   }
 
   .coop-dialog-body {
@@ -572,6 +638,7 @@
     padding: 12px 14px;
     border-bottom: 1px solid var(--color-border-subtle);
     vertical-align: middle;
+    transition: background-color var(--motion-base) var(--ease-in-out);
   }
 
   .coop-table tbody th {
@@ -693,9 +760,17 @@
   }
 
   @media (prefers-reduced-motion: reduce) {
-    *, *::before, *::after {
-      animation-duration: 0.01ms !important;
-      transition-duration: 0.01ms !important;
+    :root {
+      --motion-base: 120ms;
+      --motion-slow: 120ms;
+      --duration-medium: 120ms;
+      --duration-slow: 120ms;
+      --duration-slow-max: 120ms;
+    }
+
+    dialog.coop-dialog,
+    dialog.coop-dialog::backdrop {
+      transition-duration: var(--motion-fast);
     }
   }
 }

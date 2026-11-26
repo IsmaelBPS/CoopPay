@@ -1,8 +1,5 @@
-import { Badge } from '@astryxdesign/core/Badge';
-import { Button } from '@astryxdesign/core/Button';
-import { Text } from '@astryxdesign/core/Text';
-import { NavLink, Outlet, useLocation, useNavigate } from 'react-router-dom';
-import { useAuthStore } from '../../features/auth/authStore';
+import { NavLink, Outlet, useLocation } from 'react-router-dom';
+import { UserMenu } from '../../features/auth/UserMenu';
 
 const NAV_ITEMS = [
   { to: '/associates', label: 'Associados', tag: 'API ativa' },
@@ -23,14 +20,14 @@ const ROUTE_META: Record<string, { title: string; subtitle: string }> = {
     title: 'Extrato / Ledger',
     subtitle: 'Rastreabilidade contábil de créditos, débitos e transferências',
   },
+  '/settings': {
+    title: 'Configurações',
+    subtitle: 'Perfil do associado, aparência e gerenciamento da sessão ativa',
+  },
 };
 
 export function AppLayout() {
   const { pathname } = useLocation();
-  const navigate = useNavigate();
-  const user = useAuthStore((state) => state.user);
-  const authMode = useAuthStore((state) => state.authMode);
-  const logout = useAuthStore((state) => state.logout);
   const meta = ROUTE_META[pathname] ?? ROUTE_META['/associates'];
 
   return (
@@ -77,24 +74,7 @@ export function AppLayout() {
             <h1 className="coop-page-title">{meta.title}</h1>
             <p className="coop-page-subtitle">{meta.subtitle}</p>
           </div>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
-            {user && (
-              <Text type="supporting" weight="semibold">
-                {user.name || user.email}
-              </Text>
-            )}
-            {authMode === 'preview' && <Badge variant="neutral" label="Sessão local" />}
-            <Badge variant="green" label="Astryx + Sicredi" />
-            <Button
-              variant="secondary"
-              size="sm"
-              label="Sair"
-              onClick={() => {
-                logout();
-                navigate('/login', { replace: true });
-              }}
-            />
-          </div>
+          <UserMenu />
         </header>
 
         <main className="coop-content">

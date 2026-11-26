@@ -442,6 +442,8 @@ export function AssociatesPage() {
                           borderRadius: 'var(--radius-sm)',
                           border: `1px solid ${isSelected ? 'var(--color-brand-primary)' : 'var(--color-border-subtle)'}`,
                           backgroundColor: isSelected ? 'var(--color-brand-tint)' : '#ffffff',
+                          transition:
+                            'border-color var(--motion-base) var(--ease-in-out), background-color var(--motion-base) var(--ease-in-out)',
                           cursor: 'pointer',
                           display: 'flex',
                           justifyContent: 'space-between',
