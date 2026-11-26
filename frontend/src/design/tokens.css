@@ -9,6 +9,14 @@
     --font-display: 'Exo 2', sans-serif;
     --font-sans: 'Nunito', sans-serif;
 
+    /* Movimento (ver animations.md) */
+    --motion-fast: 120ms;
+    --motion-base: 200ms;
+    --motion-slow: 320ms;
+    --ease-out: cubic-bezier(0.2, 0, 0, 1);
+    --ease-in: cubic-bezier(0.4, 0, 1, 1);
+    --ease-in-out: cubic-bezier(0.4, 0, 0.2, 1);
+
     /* Cores da marca (Sicredi) */
     --color-brand-primary: #33820d;
     --color-brand-hover: #26610a;
@@ -186,7 +194,7 @@
     color: rgba(255, 255, 255, 0.88);
     font-weight: 600;
     font-size: 0.9375rem;
-    transition: background-color 0.2s ease, color 0.2s ease;
+    transition: background-color var(--motion-base) var(--ease-in-out), color var(--motion-base) var(--ease-in-out);
   }
 
   .coop-nav-link:hover {
@@ -322,7 +330,7 @@
     padding: 8px 20px;
     border: 1px solid transparent;
     cursor: pointer;
-    transition: background-color 0.25s ease, color 0.25s ease, border-color 0.25s ease;
+    transition: background-color var(--motion-base) var(--ease-in-out), color var(--motion-base) var(--ease-in-out), border-color var(--motion-base) var(--ease-in-out);
   }
 
   .coop-btn:disabled {
@@ -394,7 +402,7 @@
     border: 1px solid var(--color-border);
     border-radius: var(--radius-sm);
     padding: 9px 12px;
-    transition: border-color 0.2s ease, background-color 0.2s ease;
+    transition: border-color var(--motion-base) var(--ease-in-out), background-color var(--motion-base) var(--ease-in-out);
   }
 
   .coop-input:focus-visible,
@@ -412,6 +420,11 @@
 
   .coop-input:is(:user-valid, .user-valid-fallback),
   .coop-select:is(:user-valid, .user-valid-fallback) {
+    border-color: var(--color-brand-primary);
+  }
+
+  input:is(:autofill, :-webkit-autofill) {
+    box-shadow: inset 0 0 0 2px var(--color-brand-primary);
     border-color: var(--color-brand-primary);
   }
 
@@ -676,6 +689,13 @@
 
     .coop-content {
       padding: 16px;
+    }
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    *, *::before, *::after {
+      animation-duration: 0.01ms !important;
+      transition-duration: 0.01ms !important;
     }
   }
 }

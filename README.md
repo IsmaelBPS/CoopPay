@@ -164,6 +164,11 @@ A pipeline de CI (`.github/workflows/ci.yml`) roda a cada push na `main` e em pu
 - [ ] Conexão do Frontend com o Backend:
   - [x] Substituir dados mockados de `AccountsPage.tsx` (`PREVIEW_ACCOUNTS`) e habilitar criação de conta, consulta de saldo, depósito, saque e transferência via API
   - [x] Conectar `LedgerPage.tsx` aos endpoints reais de `LedgerController` (`/api/v1/ledger/accounts/{accountId}` e `/transactions/{transactionId}`) removendo `PREVIEW_LEDGER`
+  - [ ] Conectar `LoginPage.tsx` (`auth/api.ts`) ao endpoint real `/api/v1/auth/login` com JWT, removendo a dependência da sessão local (`preview`)
+- [ ] Separação entre Portal do Associado e Central Administrativa:
+  - [ ] Diferenciação de perfis/roles (`ASSOCIATE` vs `ADMIN`) no backend e proteção das rotas administrativas (CRUD de associados, abertura de contas de terceiros e consulta global de ledger)
+  - [ ] Endpoints escopados ao associado autenticado (ex.: listar minhas contas, consultar meu saldo e meu extrato sem informar `associateId`/`accountId` manualmente)
+  - [ ] Visão dedicada de autoatendimento no frontend para o associado (seleção automática das próprias contas, saldo, transferências e extrato), separada do painel administrativo da cooperativa
 - [ ] Testes, Observabilidade de Contas e Ajustes Pontuais:
   - [ ] Logs estruturados e métricas de negócio (`MeterRegistry`) no `AccountService` e fluxos de concorrência/locking (operações, saldo insuficiente e conflitos)
   - [ ] Suíte de testes unitários e de integração (Testcontainers) cobrindo `account/` e mensageria Kafka

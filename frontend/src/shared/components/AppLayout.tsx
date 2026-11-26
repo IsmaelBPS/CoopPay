@@ -1,6 +1,8 @@
 import { Badge } from '@astryxdesign/core/Badge';
+import { Button } from '@astryxdesign/core/Button';
 import { Text } from '@astryxdesign/core/Text';
-import { NavLink, Outlet, useLocation } from 'react-router-dom';
+import { NavLink, Outlet, useLocation, useNavigate } from 'react-router-dom';
+import { useAuthStore } from '../../features/auth/authStore';
 
 const NAV_ITEMS = [
   { to: '/associates', label: 'Associados', tag: 'API ativa' },
@@ -25,6 +27,10 @@ const ROUTE_META: Record<string, { title: string; subtitle: string }> = {
 
 export function AppLayout() {
   const { pathname } = useLocation();
+  const navigate = useNavigate();
+  const user = useAuthStore((state) => state.user);
+  const authMode = useAuthStore((state) => state.authMode);
+  const logout = useAuthStore((state) => state.logout);
   const meta = ROUTE_META[pathname] ?? ROUTE_META['/associates'];
 
   return (
@@ -71,11 +77,23 @@ export function AppLayout() {
             <h1 className="coop-page-title">{meta.title}</h1>
             <p className="coop-page-subtitle">{meta.subtitle}</p>
           </div>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
+            {user && (
+              <Text type="supporting" weight="semibold">
+                {user.name || user.email}
+              </Text>
+            )}
+            {authMode === 'preview' && <Badge variant="neutral" label="Sessão local" />}
             <Badge variant="green" label="Astryx + Sicredi" />
-            <Text type="supporting" color="secondary">
-              Java 21 · Spring Boot 3
-            </Text>
+            <Button
+              variant="secondary"
+              size="sm"
+              label="Sair"
+              onClick={() => {
+                logout();
+                navigate('/login', { replace: true });
+              }}
+            />
           </div>
         </header>
 

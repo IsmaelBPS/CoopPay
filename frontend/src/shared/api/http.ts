@@ -1,3 +1,5 @@
+import { useAuthStore } from '../../features/auth/authStore';
+
 export interface ApiFieldError {
   field?: string;
   message?: string;
@@ -43,11 +45,21 @@ export async function apiRequest<T>(path: string, init?: RequestInit): Promise<T
   if (init?.body && !headers.has('Content-Type')) {
     headers.set('Content-Type', 'application/json');
   }
+  if (!headers.has('Authorization')) {
+    const { token, authMode } = useAuthStore.getState();
+    if (authMode === 'api' && token) {
+      headers.set('Authorization', `Bearer ${token}`);
+    }
+  }
 
   const response = await fetch(url, {
     ...init,
     headers,
   });
+
+  if (response.status === 401 && !path.includes('/auth/login')) {
+    useAuthStore.getState().logout();
+  }
 
   if (!response.ok) {
     const { message, details } = await parseErrorBody(response);
