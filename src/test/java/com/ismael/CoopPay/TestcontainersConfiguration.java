@@ -10,16 +10,28 @@ import org.testcontainers.utility.DockerImageName;
 @TestConfiguration(proxyBeanMethods = false)
 public class TestcontainersConfiguration {
 
+	// Um par de containers para toda a suíte: um par por contexto Spring esgota a CI (timeout do Kafka).
+	// Start é idempotente; o Ryuk remove os containers ao fim da JVM.
+	private static final KafkaContainer KAFKA =
+			new KafkaContainer(DockerImageName.parse("apache/kafka-native:latest"));
+	private static final PostgreSQLContainer POSTGRES =
+			new PostgreSQLContainer(DockerImageName.parse("postgres:latest"));
+
+	static {
+		KAFKA.start();
+		POSTGRES.start();
+	}
+
 	@Bean
 	@ServiceConnection
 	KafkaContainer kafkaContainer() {
-		return new KafkaContainer(DockerImageName.parse("apache/kafka-native:latest"));
+		return KAFKA;
 	}
 
 	@Bean
 	@ServiceConnection
 	PostgreSQLContainer postgresContainer() {
-		return new PostgreSQLContainer(DockerImageName.parse("postgres:latest"));
+		return POSTGRES;
 	}
 
 }
