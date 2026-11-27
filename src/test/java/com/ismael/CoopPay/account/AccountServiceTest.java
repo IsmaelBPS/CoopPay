@@ -6,6 +6,7 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
 import java.math.BigDecimal;
@@ -111,6 +112,16 @@ class AccountServiceTest {
     void transfer_shouldRejectSameAccount() {
         UUID id = UUID.randomUUID();
         assertThatThrownBy(() -> service.transfer(id, id, BigDecimal.ONE, "k")).isInstanceOf(IllegalArgumentException.class);
+    }
+
+    @Test
+    void movements_shouldRejectMissingOrBlankIdempotencyKey() {
+        UUID id = UUID.randomUUID();
+        UUID targetId = UUID.randomUUID();
+        assertThatThrownBy(() -> service.deposit(id, BigDecimal.ONE, null)).isInstanceOf(IllegalArgumentException.class);
+        assertThatThrownBy(() -> service.withdraw(id, BigDecimal.ONE, " ")).isInstanceOf(IllegalArgumentException.class);
+        assertThatThrownBy(() -> service.transfer(id, targetId, BigDecimal.ONE, "")).isInstanceOf(IllegalArgumentException.class);
+        verifyNoInteractions(accountRepository, ledgerService);
     }
 
     @Test

@@ -49,7 +49,7 @@ public class AccountService {
     @Transactional
     public Account deposit(UUID accountId, BigDecimal amount, String idempotencyKey) {
         validateAmount(amount);
-        String key = keyOrRandom(idempotencyKey);
+        String key = requireIdempotencyKey(idempotencyKey);
         Account account = lock(accountId);
         // Retry com a mesma chave não pode creditar duas vezes.
         if (ledgerService.findReplay(key, accountId, LedgerEntryType.CREDIT, LedgerOperationType.DEPOSIT, amount).isPresent()) {
@@ -65,7 +65,7 @@ public class AccountService {
     @Transactional
     public Account withdraw(UUID accountId, BigDecimal amount, String idempotencyKey) {
         validateAmount(amount);
-        String key = keyOrRandom(idempotencyKey);
+        String key = requireIdempotencyKey(idempotencyKey);
         Account account = lock(accountId);
         if (ledgerService.findReplay(key, accountId, LedgerEntryType.DEBIT, LedgerOperationType.WITHDRAWAL, amount).isPresent()) {
             return account;
@@ -84,7 +84,7 @@ public class AccountService {
         if (sourceId.equals(targetId)) {
             throw new IllegalArgumentException("Conta de origem e destino devem ser diferentes");
         }
-        String key = keyOrRandom(idempotencyKey);
+        String key = requireIdempotencyKey(idempotencyKey);
         // Ordem determinística de locks evita deadlock em transferências cruzadas (A→B e B→A).
         boolean sourceFirst = sourceId.compareTo(targetId) < 0;
         Account first = lock(sourceFirst ? sourceId : targetId);
@@ -124,7 +124,10 @@ public class AccountService {
         }
     }
 
-    private String keyOrRandom(String key) {
-        return key == null || key.isBlank() ? UUID.randomUUID().toString() : key;
+    private String requireIdempotencyKey(String key) {
+        if (key == null || key.isBlank()) {
+            throw new IllegalArgumentException("Header Idempotency-Key é obrigatório");
+        }
+        return key;
     }
 }

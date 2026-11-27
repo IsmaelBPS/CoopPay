@@ -58,23 +58,26 @@ public class AccountController {
     }
 
     @Operation(summary = "Deposita valor na conta",
-            description = "Header opcional Idempotency-Key: repetir a chave não duplica o depósito.")
+            description = "Header obrigatório Idempotency-Key: repetir a chave não duplica o depósito.")
     @ApiResponses({
         @ApiResponse(responseCode = "200", description = "Depósito realizado"),
+        @ApiResponse(responseCode = "400", description = "Idempotency-Key ausente ou dados inválidos"),
         @ApiResponse(responseCode = "404", description = "Conta não encontrada"),
         @ApiResponse(responseCode = "409", description = "Conta inativa ou chave de idempotência em conflito")
     })
     @PostMapping("/{id}/deposit")
     public AccountResponse deposit(
             @PathVariable UUID id,
-            @RequestHeader(value = IDEMPOTENCY_HEADER, required = false) @Size(max = 100) String idempotencyKey,
+            @RequestHeader(IDEMPOTENCY_HEADER) @Size(max = 100) String idempotencyKey,
             @Valid @RequestBody AmountRequest request) {
         return AccountResponse.from(service.deposit(id, request.amount(), idempotencyKey));
     }
 
-    @Operation(summary = "Saca valor da conta")
+    @Operation(summary = "Saca valor da conta",
+            description = "Header obrigatório Idempotency-Key: repetir a chave não duplica o saque.")
     @ApiResponses({
         @ApiResponse(responseCode = "200", description = "Saque realizado"),
+        @ApiResponse(responseCode = "400", description = "Idempotency-Key ausente ou dados inválidos"),
         @ApiResponse(responseCode = "404", description = "Conta não encontrada"),
         @ApiResponse(responseCode = "409", description = "Conta inativa ou chave de idempotência em conflito"),
         @ApiResponse(responseCode = "422", description = "Saldo insuficiente")
@@ -82,15 +85,16 @@ public class AccountController {
     @PostMapping("/{id}/withdraw")
     public AccountResponse withdraw(
             @PathVariable UUID id,
-            @RequestHeader(value = IDEMPOTENCY_HEADER, required = false) @Size(max = 100) String idempotencyKey,
+            @RequestHeader(IDEMPOTENCY_HEADER) @Size(max = 100) String idempotencyKey,
             @Valid @RequestBody AmountRequest request) {
         return AccountResponse.from(service.withdraw(id, request.amount(), idempotencyKey));
     }
 
-    @Operation(summary = "Transfere valor da conta para outra conta", description = "Retorna a conta de origem atualizada.")
+    @Operation(summary = "Transfere valor da conta para outra conta",
+            description = "Header obrigatório Idempotency-Key. Retorna a conta de origem atualizada.")
     @ApiResponses({
         @ApiResponse(responseCode = "200", description = "Transferência realizada"),
-        @ApiResponse(responseCode = "400", description = "Origem e destino iguais ou dados inválidos"),
+        @ApiResponse(responseCode = "400", description = "Idempotency-Key ausente, origem e destino iguais ou dados inválidos"),
         @ApiResponse(responseCode = "404", description = "Conta não encontrada"),
         @ApiResponse(responseCode = "409", description = "Conta inativa ou chave de idempotência em conflito"),
         @ApiResponse(responseCode = "422", description = "Saldo insuficiente")
@@ -98,7 +102,7 @@ public class AccountController {
     @PostMapping("/{id}/transfers")
     public AccountResponse transfer(
             @PathVariable UUID id,
-            @RequestHeader(value = IDEMPOTENCY_HEADER, required = false) @Size(max = 100) String idempotencyKey,
+            @RequestHeader(IDEMPOTENCY_HEADER) @Size(max = 100) String idempotencyKey,
             @Valid @RequestBody TransferRequest request) {
         return AccountResponse.from(service.transfer(id, request.targetAccountId(), request.amount(), idempotencyKey));
     }

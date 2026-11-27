@@ -151,6 +151,13 @@ A pipeline de CI (`.github/workflows/ci.yml`) roda a cada push na `main` e em pu
   - [x] Mapeamento de exceções de domínio financeiro (ex.: saldo insuficiente, conta inexistente/bloqueada e transferência para a mesma conta) no `GlobalExceptionHandler` (`ProblemDetail`)
   - [x] Testes de integração concorrentes com múltiplas threads e PostgreSQL real (Testcontainers) validando ausência de saldo negativo e de *deadlocks*
 - [x] Ledger imutável de movimentações para auditoria e rastreabilidade (`@Immutable` na entidade, trigger no PostgreSQL bloqueando `UPDATE`/`DELETE` e FK `ledger_entries.account_id` → `accounts`)
+- [ ] Idempotência obrigatória nas movimentações (PRD: retry não pode duplicar débito/crédito):
+  - [x] Header `Idempotency-Key` obrigatório em depósito, saque e transferência (400 quando ausente), removendo a geração aleatória de chave em `AccountService.keyOrRandom`
+  - [ ] Persistir o destino da transferência no ledger (migration `V6`, sem alterar a `V2`) e comparar o payload completo no replay, retornando 409 em divergência
+  - [ ] Replay devolve o resultado original da operação, e não o saldo atual da conta
+  - [ ] Escopo da chave definido junto com a autenticação (por associado autenticado, e não só por conta)
+  - [ ] Avaliar tabela `idempotency_keys` (hash do request + resposta armazenada) para cobrir operações rejeitadas
+  - [ ] Testes: retry sem header, retry com destino diferente, retry idêntico sem novo débito e requisições paralelas com a mesma chave gerando um único débito
 - [ ] Mensageria Assíncrona (Apache Kafka):
   - [ ] Definição de tópicos e contratos de eventos financeiros (ex.: depósito, saque e transferência confirmados)
   - [ ] Publicação confiável pós-commit (`@TransactionalEventListener(AFTER_COMMIT)` ou padrão Transactional Outbox) evitando eventos de transações que sofreram rollback

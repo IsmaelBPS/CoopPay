@@ -39,6 +39,8 @@ import com.ismael.CoopPay.ledger.infrastructure.persistence.LedgerEntryJPAReposi
 @Import(TestcontainersConfiguration.class)
 class AccountIntegrationTest {
 
+    private static final String IDEMPOTENCY_HEADER = "Idempotency-Key";
+
     @Autowired
     private MockMvc mockMvc;
     @Autowired
@@ -86,11 +88,14 @@ class AccountIntegrationTest {
                 .andReturn().getResponse().getContentAsString();
         String id = com.jayway.jsonpath.JsonPath.read(response, "$.id");
 
-        mockMvc.perform(post(apiBase + "/accounts/{id}/deposit", id).contentType(MediaType.APPLICATION_JSON).content(body("100.50")))
+        mockMvc.perform(post(apiBase + "/accounts/{id}/deposit", id).header(IDEMPOTENCY_HEADER, "dep-" + id)
+                        .contentType(MediaType.APPLICATION_JSON).content(body("100.50")))
                 .andExpect(status().isOk()).andExpect(jsonPath("$.balance").value(100.50));
-        mockMvc.perform(post(apiBase + "/accounts/{id}/withdraw", id).contentType(MediaType.APPLICATION_JSON).content(body("40.25")))
+        mockMvc.perform(post(apiBase + "/accounts/{id}/withdraw", id).header(IDEMPOTENCY_HEADER, "wd-" + id)
+                        .contentType(MediaType.APPLICATION_JSON).content(body("40.25")))
                 .andExpect(status().isOk()).andExpect(jsonPath("$.balance").value(60.25));
-        mockMvc.perform(post(apiBase + "/accounts/{id}/withdraw", id).contentType(MediaType.APPLICATION_JSON).content(body("1000")))
+        mockMvc.perform(post(apiBase + "/accounts/{id}/withdraw", id).header(IDEMPOTENCY_HEADER, "wd-big-" + id)
+                        .contentType(MediaType.APPLICATION_JSON).content(body("1000")))
                 .andExpect(status().isUnprocessableEntity());
         mockMvc.perform(get(apiBase + "/accounts/{id}/balance", id))
                 .andExpect(status().isOk()).andExpect(jsonPath("$.balance").value(60.25));
@@ -101,13 +106,45 @@ class AccountIntegrationTest {
     @Test
     void shouldRejectInvalidInputAndUnknownAccount() throws Exception {
         Account account = newAccount();
-        mockMvc.perform(post(apiBase + "/accounts/{id}/deposit", account.getId()).contentType(MediaType.APPLICATION_JSON).content(body("0")))
+        mockMvc.perform(post(apiBase + "/accounts/{id}/deposit", account.getId()).header(IDEMPOTENCY_HEADER, "k-invalid")
+                        .contentType(MediaType.APPLICATION_JSON).content(body("0")))
                 .andExpect(status().isBadRequest());
-        mockMvc.perform(post(apiBase + "/accounts/{id}/deposit", UUID.randomUUID()).contentType(MediaType.APPLICATION_JSON).content(body("1")))
+        mockMvc.perform(post(apiBase + "/accounts/{id}/deposit", UUID.randomUUID()).header(IDEMPOTENCY_HEADER, "k-unknown")
+                        .contentType(MediaType.APPLICATION_JSON).content(body("1")))
                 .andExpect(status().isNotFound());
         mockMvc.perform(post(apiBase + "/accounts").contentType(MediaType.APPLICATION_JSON)
                         .content("{\"associateId\": \"" + UUID.randomUUID() + "\"}"))
                 .andExpect(status().isNotFound());
+    }
+
+    @Test
+    void shouldRejectMovementsWithoutIdempotencyKeyHeader() throws Exception {
+        Account a = newAccount();
+        Account b = newAccount();
+        accountService.deposit(a.getId(), new BigDecimal("100.00"), "seed");
+
+        mockMvc.perform(post(apiBase + "/accounts/{id}/deposit", a.getId())
+                        .contentType(MediaType.APPLICATION_JSON).content(body("10.00")))
+                .andExpect(status().isBadRequest());
+        mockMvc.perform(post(apiBase + "/accounts/{id}/withdraw", a.getId())
+                        .contentType(MediaType.APPLICATION_JSON).content(body("10.00")))
+                .andExpect(status().isBadRequest());
+        mockMvc.perform(post(apiBase + "/accounts/{id}/transfers", a.getId())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"targetAccountId\": \"" + b.getId() + "\", \"amount\": 10.00}"))
+                .andExpect(status().isBadRequest());
+
+        assertThat(accountService.findById(a.getId()).getBalance()).isEqualByComparingTo("100.00");
+        assertThat(ledgerJpa.count()).isEqualTo(1L);
+    }
+
+    @Test
+    void shouldRejectBlankIdempotencyKeyHeader() throws Exception {
+        Account account = newAccount();
+        mockMvc.perform(post(apiBase + "/accounts/{id}/deposit", account.getId()).header(IDEMPOTENCY_HEADER, "   ")
+                        .contentType(MediaType.APPLICATION_JSON).content(body("10.00")))
+                .andExpect(status().isBadRequest());
+        assertThat(ledgerJpa.count()).isZero();
     }
 
     @Test
@@ -134,14 +171,16 @@ class AccountIntegrationTest {
         Account b = newAccount();
         accountService.deposit(a.getId(), new BigDecimal("100.00"), "seed");
 
-        mockMvc.perform(post(apiBase + "/accounts/{id}/transfers", a.getId()).contentType(MediaType.APPLICATION_JSON)
+        mockMvc.perform(post(apiBase + "/accounts/{id}/transfers", a.getId()).header(IDEMPOTENCY_HEADER, "tr-1")
+                        .contentType(MediaType.APPLICATION_JSON)
                         .content("{\"targetAccountId\": \"" + b.getId() + "\", \"amount\": 30.00}"))
                 .andExpect(status().isOk()).andExpect(jsonPath("$.balance").value(70.00));
 
         assertThat(accountService.findById(b.getId()).getBalance()).isEqualByComparingTo("30.00");
         assertThat(ledgerJpa.count()).isEqualTo(3L);
 
-        mockMvc.perform(post(apiBase + "/accounts/{id}/transfers", a.getId()).contentType(MediaType.APPLICATION_JSON)
+        mockMvc.perform(post(apiBase + "/accounts/{id}/transfers", a.getId()).header(IDEMPOTENCY_HEADER, "tr-self")
+                        .contentType(MediaType.APPLICATION_JSON)
                         .content("{\"targetAccountId\": \"" + a.getId() + "\", \"amount\": 1.00}"))
                 .andExpect(status().isBadRequest());
     }
@@ -159,7 +198,7 @@ class AccountIntegrationTest {
             results.add(pool.submit(() -> {
                 start.await();
                 try {
-                    accountService.withdraw(account.getId(), new BigDecimal("10.00"), null);
+                    accountService.withdraw(account.getId(), new BigDecimal("10.00"), UUID.randomUUID().toString());
                     return true;
                 } catch (RuntimeException e) {
                     return false;
@@ -192,8 +231,8 @@ class AccountIntegrationTest {
             boolean forward = i % 2 == 0;
             futures.add(pool.submit(() -> {
                 start.await();
-                if (forward) accountService.transfer(a.getId(), b.getId(), new BigDecimal("5.00"), null);
-                else accountService.transfer(b.getId(), a.getId(), new BigDecimal("5.00"), null);
+                if (forward) accountService.transfer(a.getId(), b.getId(), new BigDecimal("5.00"), UUID.randomUUID().toString());
+                else accountService.transfer(b.getId(), a.getId(), new BigDecimal("5.00"), UUID.randomUUID().toString());
                 return null;
             }));
         }
